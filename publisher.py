@@ -7,6 +7,7 @@ def install(package):
 install("paho-mqtt")
 
 import paho.mqtt.client as mqtt
+import virtual_device as vd
 import random
 
 def on_connect(client, userdata, flags, rc):
@@ -20,9 +21,10 @@ random = random.Random()
 random.seed()
 
 client = mqtt.Client()
+shadow = vd.device("pi1")
 client.on_publish = on_publish
 client.on_connect = on_connect
-client.connect("localhost", 1883, 60)
+client.connect("localhost", 1883, 1)
 
 client.loop_start()
 
@@ -30,4 +32,5 @@ while True:
     rand = random.getrandbits(5)
     print(str(rand))
     ret = client.publish("ints/rand", rand, 0, False, None)
+    shadow.generalCallback(client, None, rand, "ints/rand")
     ret.wait_for_publish()
