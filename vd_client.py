@@ -1,6 +1,9 @@
 import subprocess
 import sys
 import json
+import os.path
+from os import path
+from datetime import datetime
 
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
@@ -35,15 +38,20 @@ def update(client, userdata, msg, name):
     if msg.topic == "$devices/" + name + "/shadow/update":  #make sure this is an update for the correct device 
         str = msg.payload
         decoded_str = json.loads(str)        #load the payload into a json dict
-        if "desired" in decoded_str:          #check if desired is a field in the json dict
+        if 'desired' in decoded_str['state']:          #check if desired is a field in the json dict
             #evaluate desired state, publish to device, update json if device updates (device will publish acceptance msg)
             int = 5 #this is to make compiler happy
-        if "reported" in decoded_str:
+        if 'reported' in decoded_str['state']:
             print("entered reported")
             #load json here, update current state of device, log data, publish to accepted topic so that device knows data got through
-            with open(name + "_shadow.json", "r") as r:
-                loaded = json.load(r)
-            print(str["state"]["reported"]["counter"])
+            if os.path.exists(name + "_shadow_json"):  #check if json for device exists in directory with client
+                with open(name + "_shadow_json", "r") as file_in:
+                    loaded = json.load(file_in)
+                loaded['state']['reported']['counter'] = decoded_str['state']['reported']['counter']   #update the var in shadow json
+                loaded.update({datetime.now().strftime('%Y-%m-%d %H:%M:%S'): {'counter': decoded_str['state']['reported']['counter']}})   #this should probably call a function which expands all reported fields and returns a dict obj 
+
+
+            print(decoded_str["state"]["reported"]["counter"])
 """
 def on_message(client, userdata, msg):   #this on message function could be abstracted to 3 ifs: receiving device data, receiving requests for device, and receiving device state
     if msg.topic.find("CONNECTED") != -1:     
