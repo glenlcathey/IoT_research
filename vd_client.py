@@ -33,17 +33,12 @@ def on_message(client, userdata, msg):
     
 def update(client, userdata, msg, name):
     if msg.topic == "$devices/" + name + "/shadow/update":  #make sure this is an update for the correct device 
-        msg.payload = msg.payload.decode("utf-8")
         str = msg.payload
-        print(str)
-        str = json.loads(msg.payload)        #load the payload into a json dict
-        print(str)
-        print(str["state"]["reported"]["counter"])
-        
-        if "desired" in str:          #check if desired is a field in the json dict
+        decoded_str = json.loads(str)        #load the payload into a json dict
+        if "desired" in decoded_str:          #check if desired is a field in the json dict
             #evaluate desired state, publish to device, update json if device updates (device will publish acceptance msg)
             int = 5 #this is to make compiler happy
-        if "reported" in str:
+        if "reported" in decoded_str:
             print("entered reported")
             #load json here, update current state of device, log data, publish to accepted topic so that device knows data got through
             with open(name + "_shadow.json", "r") as r:

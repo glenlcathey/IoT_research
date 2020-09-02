@@ -33,13 +33,13 @@ data = {
                 "counter": 0
             }
         }
-    }
+}
 
 client.loop_start()
 
 while True:
-    print(data)
-    ret = client.publish("$devices/pi1/shadow/update", str(data), 0, False, None)
+    str = json.dumps(data)
+    ret = client.publish("$devices/pi1/shadow/update", str, 0, False, None)
     data["state"]["reported"]["counter"] = data["state"]["reported"]["counter"] + 1
     #shadow.generalCallback(client, None, rand, "ints/rand")
     ret.wait_for_publish()
