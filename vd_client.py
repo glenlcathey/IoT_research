@@ -18,6 +18,20 @@ import paho.mqtt.client as mqtt
 
 device_name = "pi1"
 
+def json_generator():
+    empty_dict = {
+        'state': {
+            'desired': {
+
+            },
+            'reported': {
+
+            }
+        }
+    }
+    
+    return empty_dict
+
 def subscription_setup(client, name):      #TODO add the rest of aws api subscription setup
     base_str = "$devices/" + name + "/shadow"
     client.subscribe(base_str + "/update")
@@ -41,17 +55,22 @@ def update(client, userdata, msg, name):
         if 'desired' in decoded_str['state']:          #check if desired is a field in the json dict
             #evaluate desired state, publish to device, update json if device updates (device will publish acceptance msg)
             int = 5 #this is to make compiler happy
-        if 'reported' in decoded_str['state']:
-            print("entered reported")
-            #load json here, update current state of device, log data, publish to accepted topic so that device knows data got through
-            if os.path.exists(name + "_shadow_json"):  #check if json for device exists in directory with client
-                with open(name + "_shadow_json", "r") as file_in:
-                    loaded = json.load(file_in)
-                loaded['state']['reported']['counter'] = decoded_str['state']['reported']['counter']   #update the var in shadow json
-                loaded.update({datetime.now().strftime('%Y-%m-%d %H:%M:%S'): {'counter': decoded_str['state']['reported']['counter']}})   #this should probably call a function which expands all reported fields and returns a dict obj 
+        if 'reported' in decoded_str['state']: #load json here, update current state of device, log data, publish to accepted topic so that device knows data got through
+            if !os.path.exists(name + "_shadow_json"):    #check if json shadow file missing
+                int = 2
+                #call function that makes skeletal json file
+                                                                                                                                                #TODO json_generator() - makes and returns empty json dict w reported/desired/delta structure
+        #if os.path.exists(name + "_shadow_json"):  #check if json for device exists in directory with client
+            with open(name + "_shadow_json", "r") as file_in:       #TODO this should be wrapped in try/catch in case json file creation failed
+                loaded = json.load(file_in)
+            loaded['state']['reported']['counter'] = decoded_str['state']['reported']['counter']   #update the var in shadow json
+            loaded.update({datetime.now().strftime('%Y-%m-%d %H:%M:%S'): {'counter': decoded_str['state']['reported']['counter']}})   #TODO this should probably call a function which expands all reported fields and returns a dict obj 
+            with open(name + "_shadow_json", "w") as file_out:
+                json.dump(loaded, file_out)                        #write updated json dict back into file
 
 
-            print(decoded_str["state"]["reported"]["counter"])
+
+
 """
 def on_message(client, userdata, msg):   #this on message function could be abstracted to 3 ifs: receiving device data, receiving requests for device, and receiving device state
     if msg.topic.find("CONNECTED") != -1:     
