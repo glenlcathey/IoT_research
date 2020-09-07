@@ -1,8 +1,7 @@
 import subprocess
 import sys
 import json
-import os.path
-from os import path
+import os
 from datetime import datetime
 
 def install(package):
@@ -48,42 +47,35 @@ def on_message(client, userdata, msg):
     if msg.topic.find("update") != -1:
         update(client, userdata, msg, device_name)
     
-def update(client, userdata, msg, name):
+def update(client, userdata, msg, name):            #TODO a desired update logic needs to be done, this should also publish to the accepted topic when an update goes through
     if msg.topic == "$devices/" + name + "/shadow/update":  #make sure this is an update for the correct device 
-        str = msg.payload
-        decoded_str = json.loads(str)        #load the payload into a json dict
+        decoded_str = json.loads(msg.payload)        #load the payload into a json dict
+        if not os.path.exists(name + "_shadow.json"):    #check if json shadow file missing, if it is then skeletal json file is made for shadow
+                print("json not found, making new one")  #this is done here because all following options will require the json
+                empty_dict = json_generator()
+                with open(name + "_shadow.json", "w") as file_out:
+                    json.dump(empty_dict, file_out)
+
         if 'desired' in decoded_str['state']:          #check if desired is a field in the json dict
-            #evaluate desired state, publish to device, update json if device updates (device will publish acceptance msg)
-            int = 5 #this is to make compiler happy
+            #should check if desired differs from reported state (CHECK ALL SUBFIELDS, POSSIBLY CALL RECURSIVE FUNC HERE??) - if it does NOT then function can end
+            #if desired DOES differ, if device NOT connected then update desired and end
+            #if device IS connected then update desired then publish to device via update/delta, empty the desired fields once device reports it has changed state to match desired state
+            with open(name + "_shadow.json", "r") as file_in:
+                loaded = json.load(file_in)
+            if loaded['state']['desired']['counter'] == decoded_str['state']['reported']['counter']:    #TODO make this compare all subfields, probably call recursive func here or smth
+                return
+            loaded['state']['desired']['counter'] = decoded_str['state']['reported']['counter'] #TODO this should be abstracted to whatever the state fields are for the device
+
+            
+        
         if 'reported' in decoded_str['state']: #load json here, update current state of device, log data, publish to accepted topic so that device knows data got through
-            if !os.path.exists(name + "_shadow_json"):    #check if json shadow file missing
-                int = 2
-                #call function that makes skeletal json file
-                                                                                                                                                #TODO json_generator() - makes and returns empty json dict w reported/desired/delta structure
-        #if os.path.exists(name + "_shadow_json"):  #check if json for device exists in directory with client
-            with open(name + "_shadow_json", "r") as file_in:       #TODO this should be wrapped in try/catch in case json file creation failed
+            with open(name + "_shadow.json", "r") as file_in:
                 loaded = json.load(file_in)
             loaded['state']['reported']['counter'] = decoded_str['state']['reported']['counter']   #update the var in shadow json
             loaded.update({datetime.now().strftime('%Y-%m-%d %H:%M:%S'): {'counter': decoded_str['state']['reported']['counter']}})   #TODO this should probably call a function which expands all reported fields and returns a dict obj 
-            with open(name + "_shadow_json", "w") as file_out:
+            with open(name + "_shadow.json", "w") as file_out:
                 json.dump(loaded, file_out)                        #write updated json dict back into file
-
-
-
-
-"""
-def on_message(client, userdata, msg):   #this on message function could be abstracted to 3 ifs: receiving device data, receiving requests for device, and receiving device state
-    if msg.topic.find("CONNECTED") != -1:     
-        reported_connectivity = msg.payload
-        #call update connected state json function here
-    elif msg.topic.find("ints") != -1:    #making sure the topic of the message matches expected val
-        #call log data json function here
-    elif msg.topic.find("desired") != -1:
-        #a change state request will be published to the device in this case
-    else:
-        #throw error here, or default to something
-"""
-
+            client.publish("$devices/" + name + "/shadow/update/accepted", 1)
 
 client = mqtt.Client()
 client.on_message = on_message
