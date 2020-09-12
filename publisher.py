@@ -19,10 +19,12 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, msg):
     if msg.topic.find("accepted") != -1:
-        if msg.payload == 1:
+        msg.payload = msg.payload.decode("utf-8")
+        if msg.payload == "1":
             print("message received by shadow, json updated")
         else:
             print("message not accepted by shadow")
+            print(msg.payload)
 
 random = random.Random()
 random.seed()
@@ -30,6 +32,7 @@ random.seed()
 client = mqtt.Client()
 #shadow = vd.device("pi1")
 client.on_connect = on_connect
+client.on_message = on_message
 client.connect("localhost", 1883, 60)
 
 data = {
