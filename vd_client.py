@@ -17,18 +17,6 @@ import paho.mqtt.client as mqtt
 
 device_name = "pi1"
 
-def compare_dict(x, y):
-    for k, v in x:      #iterate through incoming desired state
-        for l, m in y:  #iterate through current desired state
-            if k == l:      #if key matches indicate match found for key
-                match = True
-                if v == m:  #if val of key matches as well then break from loop and compare next key
-                    break
-                else:
-                    return False
-        if match == False:
-            return False    #if a match wasnt found for the incoming key then 
-
 def json_generator():
     empty_dict = {
         'state': {
