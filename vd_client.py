@@ -16,6 +16,7 @@ import paho.mqtt.client as mqtt
 #log the data and track connectivity state of physical device
 
 device_name = "pi1"
+connected = None
 
 def json_generator():
     empty_dict = {
@@ -25,7 +26,7 @@ def json_generator():
             },
             'reported': {
 
-            }
+            },
             'delta': {
                 
             }
@@ -37,6 +38,7 @@ def json_generator():
 def subscription_setup(client, name):      #TODO add the rest of aws api subscription setup
     base_str = "$devices/" + name + "/shadow"
     client.subscribe(base_str + "/update")
+    client.subscribe("$devices/" + name + "/connected")
     print("setup subscriptions")
     
 def on_connect(client, userdata, flags, rc):
@@ -47,9 +49,15 @@ def on_connect(client, userdata, flags, rc):
     subscription_setup(client, device_name)
 
 def on_message(client, userdata, msg):
-    if msg.topic.find("update") != -1:
+    if msg.topic.find("update") != -1:          #topic contains update
         update(client, userdata, msg, device_name)
         delta(client, device_name)
+    if msg.topic.find("connected") != -1:       #topic contains connected
+        if msg.payload.decode("utf-8") == "1":
+            connected = True
+        if msg.payload.decode("utf-8") == "0":
+            connected = False
+
     
 def update(client, userdata, msg, name):            #TODO a desired update logic needs to be done, this should also publish to the accepted topic when an update goes through
     if msg.topic == "$devices/" + name + "/shadow/update":  #make sure this is an update for the correct device 
@@ -64,7 +72,9 @@ def update(client, userdata, msg, name):            #TODO a desired update logic
         
         if not os.path.exists(name + "_log.json"):    #check if json shadow file missing, if it is then skeletal json file is made for shadow
                 print("log not found, making new one")  #this is done here because all following options will require the json
-                open(name + "_log.json", "w")
+                empty = {}
+                with open(name + "_log.json", "w") as file_out:
+                    json.dump(empty, file_out)
 
         if 'desired' in decoded_str['state']:          #check if desired is a field in the json dict
             #This should update desired will all passed keys from update message
@@ -85,9 +95,10 @@ def update(client, userdata, msg, name):            #TODO a desired update logic
             with open(name + "_shadow.json", "w") as file_out:
                 json.dump(shadow, file_out)
 
-            with open(name + "_log.json", 'r') as file_in:
+            with open(name + "_log.json", "r") as file_in:
                 log = json.load(file_in)
-            log.update({datetime.now().strftime('%Y-%m-%d %H:%M:%S'): {shadow['state']['reported']}})       #this block updates the log
+            print(shadow['state']['reported'])
+            log.update({datetime.now().strftime('%Y-%m-%d %H:%M:%S'): shadow['state']['reported']})       #this block updates the log with the current reported state of the shadow
             with open(name + "_log.json", "w") as file_out:
                 json.dump(log, file_out)
             client.publish("$devices/" + name + "/shadow/update/accepted", 1)
@@ -97,6 +108,17 @@ def delta(client, name):
     #This func should compare desired and reported sub keys and add any differences into the delta key
     #then this should check if the device is connected and if so the keys in delta should be published to the device via the '/update/delta' topic
     #the device will change state to match and the publish a reported update to shadow
+    with open(name + "_shadow.json") as file_in:
+        loader = json.load(file_in)
+    desired = loader['state']['desired']
+    reported = loader['state']['reported']
+    for k, v in desired.items():            #iterate through desired keys
+        if k in reported and reported[k] != v:                #if key is in reported and desired value doesnt match reported value
+            loader['state']['delta'][k] = v
+    
+    if connected == True:
+        client.publish("$devices/" + name + "/shadow/update/delta", loader['state']['delta'])       #publish keys in delta to device
+    
 
 
 client = mqtt.Client()
