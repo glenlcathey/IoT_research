@@ -15,8 +15,8 @@ import paho.mqtt.client as mqtt
 #subscribe to physical device for now, will later be direct secure data transfer
 #log the data and track connectivity state of physical device
 
-device_name = "pi1"
-connected = None
+device_name = input("Enter the device name (this will be used for topics): ")
+connected = False
 
 def json_generator():
     empty_dict = {
@@ -53,6 +53,7 @@ def on_message(client, userdata, msg):
         update(client, userdata, msg, device_name)
         delta(client, device_name)
     if msg.topic.find("connected") != -1:       #topic contains connected
+        global connected
         if msg.payload.decode("utf-8") == "1":
             connected = True
         if msg.payload.decode("utf-8") == "0":
@@ -79,10 +80,11 @@ def update(client, userdata, msg, name):            #TODO a desired update logic
         if 'desired' in decoded_str['state']:          #check if desired is a field in the json dict
             #This should update desired will all passed keys from update message
             #any differences betwwen desired and reported state will be handled in delta function
+            print("entered desired")
             with open(name + "_shadow.json", "r") as file_in:
                 loaded = json.load(file_in)
             for k, v in decoded_str['state']['desired'].items():
-                loaded['state']['desired'][k] = v         #set the desired state of the shadow equal to the received message
+                loaded['state']['desired'][k] = int(v, 10)        #set the desired state of the shadow equal to the received message
             with open(name + "_shadow.json", 'w') as file_out:
                 json.dump(loaded, file_out)
 
@@ -97,7 +99,6 @@ def update(client, userdata, msg, name):            #TODO a desired update logic
 
             with open(name + "_log.json", "r") as file_in:
                 log = json.load(file_in)
-            print(shadow['state']['reported'])
             log.update({datetime.now().strftime('%Y-%m-%d %H:%M:%S'): shadow['state']['reported']})       #this block updates the log with the current reported state of the shadow
             with open(name + "_log.json", "w") as file_out:
                 json.dump(log, file_out)
@@ -109,15 +110,25 @@ def delta(client, name):
     #then this should check if the device is connected and if so the keys in delta should be published to the device via the '/update/delta' topic
     #the device will change state to match and the publish a reported update to shadow
     with open(name + "_shadow.json") as file_in:
-        loader = json.load(file_in)
-    desired = loader['state']['desired']
-    reported = loader['state']['reported']
-    for k, v in desired.items():            #iterate through desired keys
-        if k in reported and reported[k] != v:                #if key is in reported and desired value doesnt match reported value
-            loader['state']['delta'][k] = v
+        shadow = json.load(file_in)
+    for k, v in shadow['state']['desired'].copy().items():            #iterate through desired keys
+        if shadow['state']['reported'][k] != v:                #if key is in reported and desired value doesnt match reported value
+            shadow['state']['delta'][k] = v
+        if shadow['state']['delta'][k] == shadow['state']['reported'][k]:
+            del shadow['state']['delta'][k]
+        if shadow['state']['reported'][k] == shadow['state']['desired'][k]:
+            del shadow['state']['desired'][k]
+
+    print(shadow)
+
+    with open(name + "_shadow.json", 'w') as file_out:
+        json.dump(shadow, file_out)
+
+    global connected
     
-    if connected == True:
-        client.publish("$devices/" + name + "/shadow/update/delta", loader['state']['delta'])       #publish keys in delta to device
+    if connected == True and len(shadow['state']['delta']) != 0:
+        str = json.dumps(shadow['state']['delta'])
+        client.publish("$devices/" + name + "/shadow/update/delta", str)       #publish keys in delta to device
     
 
 
