@@ -50,6 +50,7 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, msg):
     if msg.topic.find("update") != -1:          #topic contains update
+        msg.payload = msg.payload.decode("utf-8")
         update(client, userdata, msg, device_name)
         delta(client, device_name)
     if msg.topic.find("connected") != -1:       #topic contains connected
@@ -108,7 +109,7 @@ def update(client, userdata, msg, name):            #TODO a desired update logic
 def delta(client, name):
     #This func should compare desired and reported sub keys and add any differences into the delta key
     #then this should check if the device is connected and if so the keys in delta should be published to the device via the '/update/delta' topic
-    #the device will change state to match and the publish a reported update to shadow
+    #the device will change state to match and then publish a reported update to shadow
     with open(name + "_shadow.json") as file_in:
         shadow = json.load(file_in)
     for k, v in shadow['state']['desired'].copy().items():            #iterate through desired keys
@@ -129,6 +130,7 @@ def delta(client, name):
     if connected == True and len(shadow['state']['delta']) != 0:
         str = json.dumps(shadow['state']['delta'])
         client.publish("$devices/" + name + "/shadow/update/delta", str)       #publish keys in delta to device
+        print("published to " + name)
     
 
 
