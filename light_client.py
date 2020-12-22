@@ -81,13 +81,18 @@ def update(client, userdata, msg, name):            #TODO a desired update logic
         if 'desired' in decoded_str['state']:          #check if desired is a field in the json dict
             #This should update desired will all passed keys from update message
             #any differences betwwen desired and reported state will be handled in delta function
-            print("entered desired")
             with open(name + "_shadow.json", "r") as file_in:
                 loaded = json.load(file_in)
             for k, v in decoded_str['state']['desired'].items():
-                loaded['state']['desired'][k] = int(v, 10)        #set the desired state of the shadow equal to the received message
+                loaded['state']['desired'][k] = v        #set the desired state of the shadow equal to the received message CHANGED FROM THIS CHANGE BACK FOR INTS -> int(v, 10)
             with open(name + "_shadow.json", 'w') as file_out:
                 json.dump(loaded, file_out)
+            
+            with open(name + "_log.json", "r") as file_in:
+                log = json.load(file_in)
+            log.update({datetime.now().strftime('%Y-%m-%d %H:%M:%S'): loaded['state']})       #this block updates the log with the current reported state of the shadow
+            with open(name + "_log.json", "w") as file_out:
+                json.dump(log, file_out)
 
         
         if 'reported' in decoded_str['state']: #load json here, update current state of device, log data, publish to accepted topic so that device knows data got through
@@ -100,10 +105,10 @@ def update(client, userdata, msg, name):            #TODO a desired update logic
 
             with open(name + "_log.json", "r") as file_in:
                 log = json.load(file_in)
-            log.update({datetime.now().strftime('%Y-%m-%d %H:%M:%S'): shadow['state']['reported']})       #this block updates the log with the current reported state of the shadow
+            log.update({datetime.now().strftime('%Y-%m-%d %H:%M:%S'): shadow['state']})       #this block updates the log with the current reported state of the shadow
             with open(name + "_log.json", "w") as file_out:
                 json.dump(log, file_out)
-            client.publish("$devices/" + name + "/shadow/update/accepted", 1)
+            #client.publish("$devices/" + name + "/shadow/update/accepted", 1)
             
 
 def delta(client, name):
@@ -113,14 +118,15 @@ def delta(client, name):
     with open(name + "_shadow.json") as file_in:
         shadow = json.load(file_in)
     for k, v in shadow['state']['desired'].copy().items():            #iterate through desired keys
-        if shadow['state']['reported'][k] != v:                #if key is in reported and desired value doesnt match reported value
+        if shadow['state']['reported'].get(k) != v:                #if key is in reported and desired value doesnt match reported value
             shadow['state']['delta'][k] = v
-        if shadow['state']['delta'][k] == shadow['state']['reported'][k]:
+        if shadow['state']['delta'].get(k) == shadow['state']['reported'].get(k) and shadow['state']['delta'].get(k) != None:
             del shadow['state']['delta'][k]
-        if shadow['state']['reported'][k] == shadow['state']['desired'][k]:
+        if shadow['state']['reported'].get(k) == shadow['state']['desired'].get(k) and shadow['state']['desired'].get(k) != None:
             del shadow['state']['desired'][k]
 
     print(shadow)
+    print()
 
     with open(name + "_shadow.json", 'w') as file_out:
         json.dump(shadow, file_out)
@@ -130,13 +136,13 @@ def delta(client, name):
     if connected == True and len(shadow['state']['delta']) != 0:
         str = json.dumps(shadow['state']['delta'])
         client.publish("$devices/" + name + "/shadow/update/delta", str)       #publish keys in delta to device
-        print("published to " + name)
     
 
 
 client = mqtt.Client()
 client.on_message = on_message
 client.on_connect = on_connect
+client.username_pw_set(username="light_shadow", password="light_password")
 
 client.connect("localhost", 1883, 60)
 
