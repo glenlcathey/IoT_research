@@ -17,9 +17,10 @@ import paho.mqtt.client as mqtt
 device_name = input("Enter the device name (this will be used for topics): ")
 connected = False
 shadow_name = input("Enter the name of this shadow (if left blank, defaults to base shadow): ")       #This sets up shadow and device name attached to the client
-base_str = "$devices/" + name + "/shadow/"
-if shadow_name not == "":
-    base_str = base_str + "name/" + shadow_name
+base_str = "devices/" + device_name + "/shadow/"
+unnamed_str = base_str
+if shadow_name != "":
+    base_str = base_str + "name/" + shadow_name + "/"
 
 def json_generator():
     empty_dict = {
@@ -43,16 +44,16 @@ def behaviors(cur_state, client):
         loader = json_generator()
         loader['state']['desired']['light'] = 1
         str = json.dumps(loader)
-        client.publish("$devices/esp2/shadow/update", str)
+        client.publish("devices/esp2/shadow/update", str)
     else:
         loader = json_generator()
         loader['state']['desired']['light'] = 0
         str = json.dumps(loader)
-        client.publish("$devices/esp2/shadow/update", str)
+        client.publish("devices/esp2/shadow/update", str)
 
 def subscription_setup(client, name):      #TODO add the rest of aws api subscription setup
     client.subscribe(base_str + "update")
-    client.subscribe("$devices/" + name + "/connected")
+    client.subscribe("devices/" + name + "/connected")
     print("setup subscriptions")
     
 def on_connect(client, userdata, flags, rc):
@@ -71,6 +72,10 @@ def on_message(client, userdata, msg):
         global connected
         if msg.payload.decode("utf-8") == "1":
             connected = True
+            if shadow_name != "":
+                emp = json.dumps(json_generator())
+                emp['shadow'] = shadow_name
+                client.publish(unnamed_str + "update/delta", emp)
         if msg.payload.decode("utf-8") == "0":
             connected = False
 
@@ -145,7 +150,6 @@ def delta(client, name):
     if connected == True and len(shadow['state']['delta']) != 0:
         str = json.dumps(shadow['state']['delta'])
         client.publish(base_str + "update/delta", str)       #publish keys in delta to device
-        print("published to " + name)
     
 
 

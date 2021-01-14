@@ -17,6 +17,11 @@ import paho.mqtt.client as mqtt
 
 device_name = input("Enter the device name (this will be used for topics): ")
 connected = False
+shadow_name = input("Enter the name of this shadow (if left blank, defaults to base shadow): ")       #This sets up shadow and device name attached to the client
+base_str = "devices/" + device_name + "/shadow/"
+unnamed_str = base_str
+if shadow_name != "":
+    base_str = base_str + "name/" + shadow_name + "/"
 
 def json_generator():
     empty_dict = {
@@ -36,9 +41,8 @@ def json_generator():
     return empty_dict
 
 def subscription_setup(client, name):      #TODO add the rest of aws api subscription setup
-    base_str = "$devices/" + name + "/shadow"
-    client.subscribe(base_str + "/update")
-    client.subscribe("$devices/" + name + "/connected")
+    client.subscribe(base_str + "update")
+    client.subscribe("devices/" + name + "/connected")
     print("setup subscriptions")
     
 def on_connect(client, userdata, flags, rc):
@@ -57,12 +61,16 @@ def on_message(client, userdata, msg):
         global connected
         if msg.payload.decode("utf-8") == "1":
             connected = True
+            if shadow_name != "":
+                emp = json.dumps(json_generator())
+                emp['shadow'] = shadow_name
+                client.publish(unnamed_str + "update/delta", emp)
         if msg.payload.decode("utf-8") == "0":
             connected = False
 
     
 def update(client, userdata, msg, name):            #TODO a desired update logic needs to be done, this should also publish to the accepted topic when an update goes through
-    if msg.topic == "$devices/" + name + "/shadow/update":  #make sure this is an update for the correct device 
+    if msg.topic == base_str + "update":  #make sure this is an update for the correct device 
         
         decoded_str = json.loads(msg.payload)        #load the payload into a json dict
         
@@ -108,7 +116,7 @@ def update(client, userdata, msg, name):            #TODO a desired update logic
             log.update({datetime.now().strftime('%Y-%m-%d %H:%M:%S'): shadow['state']})       #this block updates the log with the current reported state of the shadow
             with open(name + "_log.json", "w") as file_out:
                 json.dump(log, file_out)
-            #client.publish("$devices/" + name + "/shadow/update/accepted", 1)
+            #client.publish("devices/" + name + "/shadow/update/accepted", 1)
             
 
 def delta(client, name):
@@ -135,7 +143,7 @@ def delta(client, name):
     
     if connected == True and len(shadow['state']['delta']) != 0:
         str = json.dumps(shadow['state']['delta'])
-        client.publish("$devices/" + name + "/shadow/update/delta", str)       #publish keys in delta to device
+        client.publish(base_str + "update/delta", str)       #publish keys in delta to device
     
 
 
