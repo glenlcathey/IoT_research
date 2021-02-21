@@ -67,14 +67,7 @@ c.will_set("devices/" + name + "/connected", 0, qos=1, retain=True)
 #c.username_pw_set(username="", password="")                                        #NOTE must insert username and password if using authenticated broker
 
 c.connect(ip, port, 60)
-c.loop_start()                                                                      #non blocking loop, spawns a background thread to handle network events 
-
-#c = MQTTClient(name, ip, port)                                                      #NOTE must insert username and password if using authenticated broker
-#c.set_callback(on_message)
-#c.set_last_will("devices/" + name + "/connected", b"0", qos=0, retain=True)         #informs active clients the device has turned off in event of shutdown
-#c.connect()
-#c.publish(b'devices/' + name + '/connected', b'1', retain=True)                     #informs any active clients that device is now active
-#c.subscribe(bytes(base_str + "update/delta", 'utf-8'))                              #subscribe to classic shadow update delta
+c.loop_start()          
 
 while True:                                                                         #NOTE unique device behavior must be defined in this loop in order to continually execute
     state = json.dumps(data)
