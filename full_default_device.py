@@ -3,6 +3,7 @@ import time
 import sys
 import os
 import subprocess
+import psutil
 
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
@@ -22,16 +23,16 @@ data = {                                                                        
 
 ip = input("enter broker ip, if left blank defaults to saved broker ip: ")                      
 if (ip == ""):
-    ip = ""     #NOTE put your broker ip here
+    ip = "localhost"     #NOTE put your broker ip here
 
 #port = input("enter the desired port, if left blank defualts to 1883: ")
 #if (port == ""):
     #port = 1883
 port = 1883     #NOTE this is default mqtt port
 
-name = input("enter the device name for topics, if left blank defaults to : ")          #NOTE change printed message to accurately reflect default val
+name = input("enter the device name for topics, if left blank defaults to 'device': ")          #NOTE change printed message to accurately reflect default val
 if (name == ""):
-    name = ""   #NOTE put preferred default device name here
+    name = "device"   #NOTE put preferred default device name here
 
 base_str = "devices/" + name + "/shadow/"    #this is the classic unnamed shadow
 shadow_list = []   #make the list to hold shadow names as they are received             #TODO could be instantiated with values for shadows that should always exist (warning, critical, etc)
@@ -70,6 +71,10 @@ c.connect(ip, port, 60)
 c.loop_start()          
 
 while True:                                                                         #NOTE unique device behavior must be defined in this loop in order to continually execute
+    data['state']['reported']['batt_percent'] = psutil.sensors_battery().percent
+    data['state']['reported']['mem_percent'] = psutil.virtual_memory().percent
+    data['state']['reported']['value'] = data['state']['reported']['value'] + 1
+
     state = json.dumps(data)
     c.publish(base_str + "update", state, qos=1)                                      #publish curr state to unnamed shadow
     for element in shadow_list:
