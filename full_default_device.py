@@ -16,7 +16,8 @@ import paho.mqtt.client as mqtt
 data = {                                                                                #NOTE this dict obj holds state data, change keys to reflect device state
     "state": {
         "reported": {
-            "value": 0
+            "value": [0, "WARNING", "SENSOR"],                                          #NOTE each key value pair will hold an array where the first index is the value and every other is a tag
+            "mem_percent": [0]
         }
     }
 }
@@ -39,6 +40,7 @@ shadow_list = []   #make the list to hold shadow names as they are received     
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
+    client.publish('devices/' + name + '/connected', 1, retain=True)
 
 def on_message(client, userdata, msg):
     topic = msg.topic.decode("utf-8")
@@ -56,27 +58,28 @@ def on_message(client, userdata, msg):
 
 def parse_delta(x):
     for k, v in x.items():
-        data['state']['reported'][k] = v
-
+        data['state']['reported'][k] = v                                            #NOTE dont think this should have indeces because the tags should be modifiable as well (?)
+                                                                                    #could do a check to see if delta contains tags or just a value
 def sub_to_named_shadow(shadow_name):
-    c.subscribe(bytes(base_str + "name/" + shadow_name + "/update/delta"))
+    client.subscribe(bytes(base_str + "name/" + shadow_name + "/update/delta"))
 
-c = mqtt.Client()
-c.on_message = on_message
-c.on_connect = on_connect
-c.will_set("devices/" + name + "/connected", 0, qos=1, retain=True)
-#c.username_pw_set(username="", password="")                                        #NOTE must insert username and password if using authenticated broker
+client = mqtt.Client()
+client.on_message = on_message
+client.on_connect = on_connect
+client.will_set("devices/" + name + "/connected", 0, qos=1, retain=True)
+#client.username_pw_set(username="", password="")                                        #NOTE must insert username and password if using authenticated broker
 
-c.connect(ip, port, 60)
-c.loop_start()          
+client.connect(ip, port, 60)
+#data['state']['reported']['mem_percent'][1] = "SENSOR"
+client.loop_start()          
 
 while True:                                                                         #NOTE unique device behavior must be defined in this loop in order to continually execute
     data['state']['reported']['batt_percent'] = psutil.sensors_battery().percent
-    data['state']['reported']['mem_percent'] = psutil.virtual_memory().percent
-    data['state']['reported']['value'] = data['state']['reported']['value'] + 1
+    data['state']['reported']['mem_percent'][0] = psutil.virtual_memory().percent
+    data['state']['reported']['value'][0] = data['state']['reported']['value'][0] + 1
 
     state = json.dumps(data)
-    c.publish(base_str + "update", state, qos=1)                                      #publish curr state to unnamed shadow
+    client.publish(base_str + "update", state, qos=1)                                      #publish curr state to unnamed shadow
     for element in shadow_list:
-        c.publish(base_str + "/name/" + element + "/update", state, qos=1)            #publish the current state to every known named shadow
+        client.publish(base_str + "/name/" + element + "/update", state, qos=1)            #publish the current state to every known named shadow
     time.sleep(1)

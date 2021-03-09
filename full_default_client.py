@@ -58,13 +58,15 @@ def on_connect(client, userdata, flags, rc):
     subscription_setup(client, device_name)
 
 def on_message(client, userdata, msg):
+    print(msg.payload.decode("utf-8"))
     if msg.topic.find("update") != -1:          #topic contains update
         msg.payload = msg.payload.decode("utf-8")
         update(client, userdata, msg, device_name)
         delta(client, device_name)
     if msg.topic.find("connected") != -1:       #topic contains connected
         global connected
-        if msg.payload.decode("utf-8") == "1":
+        if msg.payload.decode("utf-8") == '1':
+            print('device connected')
             connected = True
             if shadow_name != "":
                 emp = json.dumps(json_generator())
@@ -98,7 +100,7 @@ def update(client, userdata, msg, name):            #TODO a desired update logic
             with open(name + "_shadow.json", "r") as file_in:
                 loaded = json.load(file_in)
             for k, v in decoded_str['state']['desired'].items():
-                loaded['state']['desired'][k] = int(v, 10)        #set the desired state of the shadow equal to the received message
+                loaded['state']['desired'][k] = v        #set the desired state of the shadow equal to the received message
             with open(name + "_shadow.json", 'w') as file_out:
                 json.dump(loaded, file_out)
 
@@ -126,11 +128,11 @@ def delta(client, name):
     with open(name + "_shadow.json") as file_in:
         shadow = json.load(file_in)
     for k, v in shadow['state']['desired'].copy().items():            #iterate through desired keys
-        if shadow['state']['reported'][k] != v:                #if key is in reported and desired value doesnt match reported value
+        if shadow['state']['reported'][k][0] != v:                #if key is in reported and desired value doesnt match reported value
             shadow['state']['delta'][k] = v
-        if shadow['state']['delta'][k] == shadow['state']['reported'][k]:
+        if shadow['state']['delta'][k][0] == shadow['state']['reported'][k][0]:
             del shadow['state']['delta'][k]
-        if shadow['state']['reported'][k] == shadow['state']['desired'][k]:
+        if shadow['state']['reported'][k][0] == shadow['state']['desired'][k][0]:
             del shadow['state']['desired'][k]
 
     print(shadow)
@@ -143,6 +145,7 @@ def delta(client, name):
     
     if connected == True and len(shadow['state']['delta']) != 0:
         str = json.dumps(shadow['state']['delta'])
+        print("publishing delta to device via topic: " + named_base_str + "update/delta")
         client.publish(named_base_str + "update/delta", str)       #publish keys in delta to device
     
 
