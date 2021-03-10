@@ -12,12 +12,12 @@ In order to update the state of the device publish a desired state JSON to topic
 The structure of that JSON should reflect the structure described here - https://docs.aws.amazon.com/iot/latest/developerguide/device-shadow-data-flow.html
 
 ## Currently utilizes
-Paho-MQTT - https://pypi.org/project/paho-mqtt/
-Mosquitto - https://mosquitto.org/
+Paho-MQTT - https://pypi.org/project/paho-mqtt/  
+Mosquitto - https://mosquitto.org/  
 Mimics AWS shadow API - https://docs.aws.amazon.com/iot/latest/developerguide/device-shadow-mqtt.html
 
 
 ## Helpful Links
-Tutorial for installing MicroPython firmware on ESP32 - https://docs.micropython.org/en/latest/esp32/tutorial/intro.html#esp32-intro
-Starting and stopping mosquitto broker installed with Homebrew - https://stackoverflow.com/questions/31045974/restarting-the-mosquito-broker/31113901
+Tutorial for installing MicroPython firmware on ESP32 - https://docs.micropython.org/en/latest/esp32/tutorial/intro.html#esp32-intro  
+Starting and stopping mosquitto broker installed with Homebrew - https://stackoverflow.com/questions/31045974/restarting-the-mosquito-broker/31113901  
 Mosquitto config file man page - https://mosquitto.org/man/mosquitto-conf-5.html
