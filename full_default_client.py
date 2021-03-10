@@ -72,6 +72,11 @@ def on_message(client, userdata, msg):
                 client.publish(unnamed_base_str + "update/delta", emp)
         if msg.payload.decode("utf-8") == "0":
             connected = False
+    if msg.topic.find("get") != -1:
+        if msg.payload.decode("utf-8") == "":
+            with open(device_name + "_shadow.json", "r") as file_in:
+                loaded = json.load(file_in)
+                client.publish(unnamed_base_str + "get", json.dumps(loaded))
 
     
 def update(client, userdata, msg, name):            #TODO a desired update logic needs to be done, this should also publish to the accepted topic when an update goes through
