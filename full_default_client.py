@@ -131,12 +131,15 @@ def delta(client, name):
     with open(name + "_shadow.json") as file_in:
         shadow = json.load(file_in)
     for k, v in shadow['state']['desired'].copy().items():            #iterate through desired keys
-        if shadow['state']['reported'][k] != v:                #if key is in reported and desired value doesnt match reported value
+        if k in shadow['state']['reported']:
+            if shadow['state']['reported'][k] != v:                #if key is in reported and desired value doesnt match reported value
+                shadow['state']['delta'][k] = v
+            if shadow['state']['delta'][k] == shadow['state']['reported'][k]:
+                del shadow['state']['delta'][k]
+            if shadow['state']['reported'][k] == shadow['state']['desired'][k]:
+                del shadow['state']['desired'][k]
+        else:
             shadow['state']['delta'][k] = v
-        if shadow['state']['delta'][k] == shadow['state']['reported'][k]:
-            del shadow['state']['delta'][k]
-        if shadow['state']['reported'][k] == shadow['state']['desired'][k]:
-            del shadow['state']['desired'][k]
 
     print(shadow)
     print()
