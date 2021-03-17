@@ -47,5 +47,5 @@ client.connect("localhost", 1883, 60)
 # manual interface.
 client.loop_start()
 while True:
-    input("press enter to send desired state again")
     client.publish("$devices/" + name + "/shadow/update", json.dumps(data))
+    input("press enter to send desired state again")
