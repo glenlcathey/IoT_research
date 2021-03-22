@@ -58,7 +58,12 @@ void connlost(void *context, char *cause)
     printf("     cause: %s\n", cause);
 }
 
-void setupSubscriptions(MQTTClient client) //might need to pass client by reference
+void publishConnected(MQTTClient *client) 
+{
+
+}
+
+void setupSubscriptions(MQTTClient *client) //might need to pass client by reference
 {
     int check;
     char[29 + strlen(DEVICE_NAME)] topic = "devices/";  //allocate 29 bytes for update delta topic length + length of device name
@@ -84,7 +89,8 @@ int main(int argc, char* argv[])
     MQTTClient client;
     MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
     MQTTClient_willOptions lwt = MQTTClient_willOptions_initializer;
-    setupLastWill(&lwt)
+    setupLastWill(&lwt);
+    conn_opts.will = &lwt;
     MQTTClient_message pubmsg = MQTTClient_message_initializer;
     MQTTClient_deliveryToken token;
     int rc;
@@ -113,7 +119,20 @@ int main(int argc, char* argv[])
         goto destroy_exit;
     }
 
-    setupSubscriptions(client);
+    setupSubscriptions(&client);
+
+    pubmsg.payload = "1";
+    pubmsg.payloadlen = (int)strlen("1");
+    pubmsg.retain = 1;
+    pubmsg.qos = 1;
+    char[strlen(DEVICE_NAME) + 18] connectedTopic = "devices/";
+    strcat(connectedTopic, DEVICE_NAME);
+    strcat(connectedTopic, "/connected");
+    if ((rc = MQTTClient_publishMessage(client, connectedTopic, &pubmsg, &token)) != MQTTCLIENT_SUCCESS)
+    {
+         printf("Failed to publish connected message, return code %d\n", rc);
+         exit(EXIT_FAILURE);
+    }
 
     
 destroy_exit:
