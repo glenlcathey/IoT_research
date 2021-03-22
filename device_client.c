@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "MQTTClient.h"
+#include "cJSON.h"
 
 #define ADDRESS     "tcp://localhost:1883"
 #define CLIENTID    "ESP32"
@@ -49,7 +50,19 @@ int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *m
 
 void parseDelta(char* msg)
 {
-    //add json code here to parse the inc desired state
+    cJSON *json = cJSON_ParseWithLength(msg, strlen(msg)); //load inc msg into json struct  NOTE: need to delete this object before exiting function
+
+}
+
+void dataJsonInit(cJSON *data)
+{
+    data = cJSON_CreateObject();
+    cJSON *reported = cJSON_CreateObject();
+    cJSON *keyPair = cJSON_CreateObject();
+    cJSON_AddNumberToObject(keyPair, "value", 0);
+    cJSON_AddItemToObject(reported, "reported", keyPair);
+    cJSON_AddItemToObject(data, "state", reported);
+    printf("%s", cJSON_Print(data));
 }
 
 void connlost(void *context, char *cause)
@@ -60,6 +73,7 @@ void connlost(void *context, char *cause)
 
 void publishConnected(MQTTClient *client, MQTTClient_message *pubmsg, MQTTClient_deliveryToken *token) 
 {
+    int check;
     pubmsg->payload = "1";
     pubmsg->payloadlen = (int)strlen("1");
     pubmsg->retain = 1;
@@ -67,9 +81,9 @@ void publishConnected(MQTTClient *client, MQTTClient_message *pubmsg, MQTTClient
     char[strlen(DEVICE_NAME) + 18] connectedTopic = "devices/";
     strcat(connectedTopic, DEVICE_NAME);
     strcat(connectedTopic, "/connected");
-    if ((rc = MQTTClient_publishMessage(*client, connectedTopic, pubmsg, token)) != MQTTCLIENT_SUCCESS)
+    if ((check = MQTTClient_publishMessage(*client, connectedTopic, pubmsg, token)) != MQTTCLIENT_SUCCESS)
     {
-         printf("Failed to publish connected message, return code %d\n", rc);
+         printf("Failed to publish connected message, return code %d\n", check);
          exit(EXIT_FAILURE);
     }
 }
@@ -104,6 +118,7 @@ int main(int argc, char* argv[])
     conn_opts.will = &lwt;
     MQTTClient_message pubmsg = MQTTClient_message_initializer;
     MQTTClient_deliveryToken token;
+    cJSON data;
     int rc;
 
     if ((rc = MQTTClient_create(&client, ADDRESS, CLIENTID,
@@ -130,6 +145,7 @@ int main(int argc, char* argv[])
         goto destroy_exit;
     }
 
+    dataJsonInit(&data);
     setupSubscriptions(&client);
     publishConnected(&client, &pubmsg, &token);
 
