@@ -58,9 +58,20 @@ void connlost(void *context, char *cause)
     printf("     cause: %s\n", cause);
 }
 
-void publishConnected(MQTTClient *client) 
+void publishConnected(MQTTClient *client, MQTTClient_message *pubmsg, MQTTClient_deliveryToken *token) 
 {
-
+    pubmsg->payload = "1";
+    pubmsg->payloadlen = (int)strlen("1");
+    pubmsg->retain = 1;
+    pubmsg->qos = 1;
+    char[strlen(DEVICE_NAME) + 18] connectedTopic = "devices/";
+    strcat(connectedTopic, DEVICE_NAME);
+    strcat(connectedTopic, "/connected");
+    if ((rc = MQTTClient_publishMessage(*client, connectedTopic, pubmsg, token)) != MQTTCLIENT_SUCCESS)
+    {
+         printf("Failed to publish connected message, return code %d\n", rc);
+         exit(EXIT_FAILURE);
+    }
 }
 
 void setupSubscriptions(MQTTClient *client) //might need to pass client by reference
@@ -120,19 +131,9 @@ int main(int argc, char* argv[])
     }
 
     setupSubscriptions(&client);
+    publishConnected(&client, &pubmsg, &token);
 
-    pubmsg.payload = "1";
-    pubmsg.payloadlen = (int)strlen("1");
-    pubmsg.retain = 1;
-    pubmsg.qos = 1;
-    char[strlen(DEVICE_NAME) + 18] connectedTopic = "devices/";
-    strcat(connectedTopic, DEVICE_NAME);
-    strcat(connectedTopic, "/connected");
-    if ((rc = MQTTClient_publishMessage(client, connectedTopic, &pubmsg, &token)) != MQTTCLIENT_SUCCESS)
-    {
-         printf("Failed to publish connected message, return code %d\n", rc);
-         exit(EXIT_FAILURE);
-    }
+    
 
     
 destroy_exit:
