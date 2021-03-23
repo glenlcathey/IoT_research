@@ -26,6 +26,16 @@
 #define QOS         1
 #define TIMEOUT     10000L
 
+cJSON *data; /* this cJSON obj holds current state of device with the structure shown below
+{                                                                                
+    "state": {
+        "reported": {
+            "key": "value"
+        }
+    }
+}
+*/
+
 volatile MQTTClient_deliveryToken deliveredtoken;
 
 void delivered(void *context, MQTTClient_deliveryToken dt)
@@ -34,9 +44,25 @@ void delivered(void *context, MQTTClient_deliveryToken dt)
     deliveredtoken = dt;
 }
 
+void parseDelta(char* msg)
+{
+    cJSON *json = cJSON_Parse(msg); //load inc msg into json struct  NOTE: need to delete this object before exiting function
+    for (int i = 0; i < cJSON_GetArraySize(json); i++) 
+    {
+        cJSON *temp = cJSON_GetArrayItem(json, i);
+        if (temp == NULL) 
+        {
+            printf("Error retrieving array item from desired JSON. Breaking from loop.\n");
+            break;
+        }
+
+    }
+
+}
+
 int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *message)  //could eventually run into issues because not utf-8 decoding
 {
-    char[] msg = (char*)message->payload;
+    char* msg = (char*)message->payload;
     printf("Message arrived\n");
     printf("     topic: %s\n", topicName);
     printf("   message: %.*s\n", message->payloadlen, msg);
@@ -48,13 +74,7 @@ int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *m
     return 1;
 }
 
-void parseDelta(char* msg)
-{
-    cJSON *json = cJSON_ParseWithLength(msg, strlen(msg)); //load inc msg into json struct  NOTE: need to delete this object before exiting function
-
-}
-
-void dataJsonInit(cJSON *data)
+void dataJsonInit()
 {
     data = cJSON_CreateObject();
     cJSON *reported = cJSON_CreateObject();
@@ -76,9 +96,9 @@ void publishConnected(MQTTClient *client, MQTTClient_message *pubmsg, MQTTClient
     int check;
     pubmsg->payload = "1";
     pubmsg->payloadlen = (int)strlen("1");
-    pubmsg->retain = 1;
+    pubmsg->retained = 1;
     pubmsg->qos = 1;
-    char[strlen(DEVICE_NAME) + 18] connectedTopic = "devices/";
+    char connectedTopic[strlen(DEVICE_NAME) + 19] = "devices/";
     strcat(connectedTopic, DEVICE_NAME);
     strcat(connectedTopic, "/connected");
     if ((check = MQTTClient_publishMessage(*client, connectedTopic, pubmsg, token)) != MQTTCLIENT_SUCCESS)
@@ -91,10 +111,11 @@ void publishConnected(MQTTClient *client, MQTTClient_message *pubmsg, MQTTClient
 void setupSubscriptions(MQTTClient *client) //might need to pass client by reference
 {
     int check;
-    char[29 + strlen(DEVICE_NAME)] topic = "devices/";  //allocate 29 bytes for update delta topic length + length of device name
+    char topic[29 + strlen(DEVICE_NAME)] = "devices/";  //allocate 29 bytes for update delta topic length + length of device name
     strcat(topic, DEVICE_NAME);
     strcat(topic, "/shadow/update/delta");
-    if ((check = MQTTClient_subscribe(client, topic, QOS)) != MQTTCLIENT_SUCCESS) {
+    printf("%s\n", topic);
+    if ((check = MQTTClient_subscribe(*client, topic, QOS)) != MQTTCLIENT_SUCCESS) {
     	printf("Failed to subscribe to %s, return code %d\n", topic, check);
     }
 }
@@ -102,23 +123,29 @@ void setupSubscriptions(MQTTClient *client) //might need to pass client by refer
 void setupLastWill(MQTTClient_willOptions *lwt)
 {
     lwt->retained = 1;
-    char[strlen(DEVICE_NAME) + 18] topic = "devices/";        //allocate 18 bytes for connected message topic + length of device name
+    char *topic = (char*)malloc((strlen(DEVICE_NAME) + 19) * sizeof(char));     //allocate 19 bytes for connected message topic + length of device name
+    strcpy(topic, "devices/");        
     strcat(topic, DEVICE_NAME);
     strcat(topic, "/connected");
-    strcpy(lwt->topicName, topic);
-    strcpy(lwt->message, "0");
+    printf("printing topic in LW func before assignment: %s\n", topic);
+    lwt->topicName = topic;
+    lwt->message = "0";
 }
 
 int main(int argc, char* argv[])
 {
+    dataJsonInit();
     MQTTClient client;
     MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
     MQTTClient_willOptions lwt = MQTTClient_willOptions_initializer;
     setupLastWill(&lwt);
+    printf("Printing topicName in main: %s\n", lwt.topicName);
+    printf("Printing message in main: %s\n", lwt.message);
     conn_opts.will = &lwt;
+    printf("printing topicname from conn_opts: %s\n", conn_opts.will->topicName);
+    printf("printing topicname length: %lu\n", strlen(conn_opts.will->topicName));
     MQTTClient_message pubmsg = MQTTClient_message_initializer;
     MQTTClient_deliveryToken token;
-    cJSON data;
     int rc;
 
     if ((rc = MQTTClient_create(&client, ADDRESS, CLIENTID,
@@ -145,14 +172,16 @@ int main(int argc, char* argv[])
         goto destroy_exit;
     }
 
-    dataJsonInit(&data);
     setupSubscriptions(&client);
     publishConnected(&client, &pubmsg, &token);
-
     
+    while (1) 
+    {
+        int x = 5;
+    }
 
-    
 destroy_exit:
+    free(conn_opts.will->topicName); //need to free dynamically allocated topic mem from setupLastWill func
     MQTTClient_destroy(&client);
 exit:
     return rc;
