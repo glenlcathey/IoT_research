@@ -14,7 +14,7 @@ The structure of that JSON should reflect the structure described here - https:/
 ## Currently utilizes
 Paho-MQTT - https://pypi.org/project/paho-mqtt/  
 Mosquitto - https://mosquitto.org/  
-Mimics AWS shadow API - https://docs.aws.amazon.com/iot/latest/developerguide/device-shadow-mqtt.html
+Mimics AWS shadow API - https://docs.aws.amazon.com/iot/latest/developerguide/device-shadow-mqtt.html  
 C JSON lib - https://github.com/DaveGamble/cJSON
 
 ## Helpful Links
