@@ -42,6 +42,7 @@ def on_message(topic, msg):
 
 def parse_delta(x):
     for k, v in x.items():
+        #Would call state changing behavior here in order to actually actuate device/affect physical state
         data['state']['reported'][k] = v
 
 def sub_to_named_shadow(shadow_name):
