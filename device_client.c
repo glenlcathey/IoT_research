@@ -46,16 +46,31 @@ void delivered(void *context, MQTTClient_deliveryToken dt)
 
 void parseDelta(char* msg)
 {
-    cJSON *json = cJSON_Parse(msg); //load inc msg into json struct  NOTE: need to delete this object before exiting function
-    for (int i = 0; i < cJSON_GetArraySize(json); i++) 
+    cJSON *msg_json = cJSON_Parse(msg); //load inc msg into json struct  NOTE: need to delete this object before exiting function
+    if (msg_json == NULL) 
     {
-        cJSON *temp = cJSON_GetArrayItem(json, i);
+        printf("Error parsing the received desired state into cJSON obj.");
+        return;
+    }
+    cJSON *data_array = cJSON_GetObjectItem(data, "state");
+    data_array = cJSON_GetObjectItem(data_array, "reported");
+    while (cJSON_GetArraySize(msg_json) > 0) 
+    {
+        cJSON *temp = cJSON_DetachItemFromArray(msg_json, 0);
         if (temp == NULL) 
         {
             printf("Error retrieving array item from desired JSON. Breaking from loop.\n");
             break;
         }
-
+        if (cJSON_HasObjectItem(data_array, temp->string)) //check if desired key is in reported already. If so, use cJSON update function
+        {
+            cJSON_SetNumberValue(cJSON_GetObjectItem(data_array, temp->string), cJSON_GetNumberValue(temp));
+        }
+        else
+        {
+            cJSON_SetValuestring(temp, temp->string);
+            cJSON_AddItemToArray(data_array, temp);
+        }
     }
 
 }
@@ -68,6 +83,7 @@ int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *m
     printf("   message: %.*s\n", message->payloadlen, msg);
     if (strstr(topicName, "delta") != NULL) {
         parseDelta(msg);                        //use separate function for parsing so that other topic functionality could be added to this function later
+        printf("\nPrinting cJSON obj after msg parsing function: \n%s\n\n", cJSON_Print(data));
     }
     MQTTClient_freeMessage(&message);
     MQTTClient_free(topicName);
@@ -127,7 +143,6 @@ void setupLastWill(MQTTClient_willOptions *lwt)
     strcpy(topic, "devices/");        
     strcat(topic, DEVICE_NAME);
     strcat(topic, "/connected");
-    printf("printing topic in LW func before assignment: %s\n", topic);
     lwt->topicName = topic;
     lwt->message = "0";
 }
@@ -139,11 +154,7 @@ int main(int argc, char* argv[])
     MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
     MQTTClient_willOptions lwt = MQTTClient_willOptions_initializer;
     setupLastWill(&lwt);
-    printf("Printing topicName in main: %s\n", lwt.topicName);
-    printf("Printing message in main: %s\n", lwt.message);
     conn_opts.will = &lwt;
-    printf("printing topicname from conn_opts: %s\n", conn_opts.will->topicName);
-    printf("printing topicname length: %lu\n", strlen(conn_opts.will->topicName));
     MQTTClient_message pubmsg = MQTTClient_message_initializer;
     MQTTClient_deliveryToken token;
     int rc;
