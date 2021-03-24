@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "MQTTClient.h"
+#include <unistd.h>
 #include "cJSON.h"
 
 #define ADDRESS     "tcp://localhost:1883"
@@ -130,7 +131,6 @@ void setupSubscriptions(MQTTClient *client) //might need to pass client by refer
     char topic[29 + strlen(DEVICE_NAME)] = "devices/";  //allocate 29 bytes for update delta topic length + length of device name
     strcat(topic, DEVICE_NAME);
     strcat(topic, "/shadow/update/delta");
-    printf("%s\n", topic);
     if ((check = MQTTClient_subscribe(*client, topic, QOS)) != MQTTCLIENT_SUCCESS) {
     	printf("Failed to subscribe to %s, return code %d\n", topic, check);
     }
@@ -139,12 +139,27 @@ void setupSubscriptions(MQTTClient *client) //might need to pass client by refer
 void setupLastWill(MQTTClient_willOptions *lwt)
 {
     lwt->retained = 1;
-    char *topic = (char*)malloc((strlen(DEVICE_NAME) + 19) * sizeof(char));     //allocate 19 bytes for connected message topic + length of device name
+    char *topic = (char*)malloc((strlen(DEVICE_NAME) + 19) * sizeof(char));     //dynamically allocate 19 bytes for connected message topic + length of device name
     strcpy(topic, "devices/");        
     strcat(topic, DEVICE_NAME);
     strcat(topic, "/connected");
     lwt->topicName = topic;
     lwt->message = "0";
+}
+
+void reportState(MQTTClient *client, MQTTClient_message *pubmsg, MQTTClient_deliveryToken *token)
+{
+    int check;
+    pubmsg->payload = cJSON_PrintUnformatted(data);
+    pubmsg->payloadlen = (int)strlen(cJSON_PrintUnformatted(data));
+    pubmsg->retained = 0;
+    pubmsg->qos = 0;
+    char topic[23 + strlen(DEVICE_NAME)] = "devices/";  //allocate 23 bytes for update topic length + length of device name
+    strcat(topic, DEVICE_NAME);
+    strcat(topic, "/shadow/update");
+    if ((check = MQTTClient_publishMessage(*client, topic, pubmsg, token)) != MQTTCLIENT_SUCCESS) {
+    	printf("Failed to publish state to %s, return code %d\n", topic, check);
+    }
 }
 
 int main(int argc, char* argv[])
@@ -188,7 +203,8 @@ int main(int argc, char* argv[])
     
     while (1) 
     {
-        int x = 5;
+        reportState(&client, &pubmsg, &token);
+        sleep(1);
     }
 
 destroy_exit:
