@@ -15,7 +15,7 @@ The structure of that JSON should reflect the structure described here - https:/
 Paho-MQTT - https://pypi.org/project/paho-mqtt/  
 Mosquitto - https://mosquitto.org/  
 Mimics AWS shadow API - https://docs.aws.amazon.com/iot/latest/developerguide/device-shadow-mqtt.html
-
+C JSON lib - https://github.com/DaveGamble/cJSON
 
 ## Helpful Links
 Tutorial for installing MicroPython firmware on ESP32 - https://docs.micropython.org/en/latest/esp32/tutorial/intro.html#esp32-intro  
