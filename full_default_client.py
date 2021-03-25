@@ -58,7 +58,8 @@ def on_connect(client, userdata, flags, rc):
     subscription_setup(client, device_name)
 
 def on_message(client, userdata, msg):
-    print(msg.payload.decode("utf-8"))
+    print("Received message: " + msg.payload.decode("utf-8"))
+    print()
     if msg.topic.find("update") != -1:          #topic contains update
         msg.payload = msg.payload.decode("utf-8")
         update(client, userdata, msg, device_name)
@@ -144,8 +145,9 @@ def delta(client, name):
     global connected
     
     if connected == True and len(shadow['state']['delta']) != 0:
+        print("items in delta")
         str = json.dumps(shadow['state']['delta'])
-        print("publishing delta to device via topic: " + named_base_str + "update/delta")
+        print(named_base_str + "update/delta")
         client.publish(named_base_str + "update/delta", str)       #publish keys in delta to device
     
 
