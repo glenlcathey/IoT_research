@@ -17,6 +17,7 @@ def install(package):
 install("paho-mqtt") #ensure mqtt library installed
 import paho.mqtt.client as mqtt
 
+
 #core frequently interacted with variables setup here
 shadow = False
 connected = False
@@ -29,6 +30,25 @@ unnamed_base_str = named_base_str
 if len(sys.argv) > 2:
     named_base_str = named_base_str + "name/" + sys.argv[2] + "/"
     shadow = True
+
+log_file_name = device_name
+if shadow:
+    log_file_name = log_file_name + "_" + sys.argv[2] #NOTE probably cleaner to remove these cmd line arg calls and just do one at the top
+log_file_name = log_file_name + ".log"
+    
+
+def setup_logger(name, log_file, level=logging.INFO):
+    """Function setup as many loggers as you want"""
+    handler = logging.FileHandler(log_file)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+    return logger
+
+logger = setup_logger('', log_file_name, level=logging.DEBUG)
+logger.info("testing logging")
 
 def json_generator():
     empty_dict = {
