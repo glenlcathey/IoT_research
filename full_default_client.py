@@ -19,6 +19,7 @@ import paho.mqtt.client as mqtt
 
 
 #core frequently interacted with variables setup here
+curr_state = {}
 shadow = False
 connected = False
 device_name = 'device'   #defaults to 'device'
@@ -48,7 +49,6 @@ def setup_logger(name, log_file, level=logging.INFO):
     return logger
 
 logger = setup_logger('', log_file_name, level=logging.DEBUG)
-logger.info("testing logging")
 
 def json_generator():
     empty_dict = {
@@ -77,7 +77,7 @@ def subscription_setup(client, name):      #TODO add the rest of aws api subscri
     print("successfully setup subscriptions")
     
 def on_connect(client, userdata, flags, rc):
-    print("Connected to broker with result code "+str(rc))
+    logger.info("Connected to broker with result code" + str(rc))
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
     subscription_setup(client, device_name)
@@ -182,7 +182,25 @@ client.on_message = on_message
 client.on_connect = on_connect
 client.username_pw_set(username="counter_shadow", password="counter_password")
 
+#load in last recorded state from json, if json not found then make shadow file
+if os.path.exists(device_name + "_shadow.json"):
+    file_in = open(device_name + "_shadow.json")
+    curr_state = json.load(file_in)
+    file_in.close()
+else:
+    print("shadow not found, making new one")
+    logger.info("shadow json not found, creating file " + device_name + "_shadow.json")
+    curr_state = json_generator()
+    file_out = open(device_name + "_shadow.json", "w")
+    json.dump(curr_state, file_out)
+    file_out.close
 
 client.connect("localhost", 1883, 60)
 
-client.loop_forever()
+try:
+    client.loop_forever()
+except:
+    logger.warning("Exception raised, writing current state to json shadow: " + json.dumps(curr_state))     #right before client shutdown, write current state to json
+    output_stream = open(device_name + "_shadow.json", "w")
+    json.dump(curr_state, output_stream)
+    output_stream.close()
