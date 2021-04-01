@@ -18,6 +18,7 @@ install("paho-mqtt") #ensure mqtt library installed
 import paho.mqtt.client as mqtt
 
 #core frequently interacted with variables setup here
+shadow = False
 connected = False
 device_name = 'device'   #defaults to 'device'
 if len(sys.argv) > 1:
@@ -27,6 +28,7 @@ named_base_str = "devices/" + device_name + "/shadow/"
 unnamed_base_str = named_base_str
 if len(sys.argv) > 2:
     named_base_str = named_base_str + "name/" + sys.argv[2] + "/"
+    shadow = True
 
 def json_generator():
     empty_dict = {
@@ -52,11 +54,10 @@ def subscription_setup(client, name):      #TODO add the rest of aws api subscri
     client.subscribe(named_base_str + "update")
     client.subscribe(named_base_str + "get")
     client.subscribe("devices/" + name + "/connected")
-    print("setup subscriptions")
+    print("successfully setup subscriptions")
     
 def on_connect(client, userdata, flags, rc):
-    print("Connected with result code "+str(rc))
-
+    print("Connected to broker with result code "+str(rc))
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
     subscription_setup(client, device_name)
@@ -73,7 +74,7 @@ def on_message(client, userdata, msg):
         if msg.payload.decode("utf-8") == '1':
             print('device connected')
             connected = True
-            if shadow_name != "":
+            if shadow:
                 emp = json.dumps(json_generator())
                 emp['shadow'] = shadow_name
                 client.publish(unnamed_base_str + "update/delta", emp)
