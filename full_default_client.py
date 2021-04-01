@@ -1,28 +1,32 @@
+#HOW TO INTERACT WITH THIS FILE:
+#call with command line arguements if you want to specify device name, or shadow name
+#the first arg should be device name (if not present defaults to 'device')
+#the second arg should be shadow name (if not present defaults base unnamed shadow)
+
+
 import subprocess
 import sys
 import json
 import os
+import logging
 from datetime import datetime
 
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
 install("paho-mqtt") #ensure mqtt library installed
-
 import paho.mqtt.client as mqtt
 
-#reserve topics for virtual device api
-
-device_name = input("Enter the device name for topics, if left blank defaults to 'device': ")
-if device_name == "":
-    device_name = 'device'
-    
+#core frequently interacted with variables setup here
 connected = False
-shadow_name = input("Enter the name of this shadow (if left blank, defaults to base shadow): ")       #This sets up shadow and device name attached to the client
+device_name = 'device'   #defaults to 'device'
+if len(sys.argv) > 1:
+    device_name = sys.argv[1]
+    
 named_base_str = "devices/" + device_name + "/shadow/"
 unnamed_base_str = named_base_str
-if shadow_name != "":
-    named_base_str = named_base_str + "name/" + shadow_name + "/"
+if len(sys.argv) > 2:
+    named_base_str = named_base_str + "name/" + sys.argv[2] + "/"
 
 def json_generator():
     empty_dict = {
