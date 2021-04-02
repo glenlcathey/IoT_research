@@ -49,6 +49,7 @@ def setup_logger(name, log_file, level=logging.INFO):
     return logger
 
 logger = setup_logger('', log_file_name, level=logging.DEBUG)
+time_logger = setup_logger('', 'time.log', level=logging.INFO)
 
 def json_generator():
     empty_dict = {
@@ -77,105 +78,103 @@ def subscription_setup(client, name):      #TODO add the rest of aws api subscri
     print("successfully setup subscriptions")
     
 def on_connect(client, userdata, flags, rc):
-    logger.info("Connected to broker with result code" + str(rc))
+    logger.info("Connected to broker with result code: " + str(rc))
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
     subscription_setup(client, device_name)
 
 def on_message(client, userdata, msg):
-    print("Received message: " + msg.payload.decode("utf-8"))
-    print()
+    logger.debug("Incoming message: topic = " + str(msg.topic) + " message = " + str(msg.payload))
+
     if msg.topic.find("update") != -1:          #topic contains update
         msg.payload = msg.payload.decode("utf-8")
         update(client, userdata, msg, device_name)
+        logger.debug("State after update function" + json.dumps(curr_state))
         delta(client, device_name)
+        print(curr_state)
+        logger.info("State after /update message processed: " + json.dumps(curr_state))
+
     if msg.topic.find("connected") != -1:       #topic contains connected
         global connected
         if msg.payload.decode("utf-8") == '1':
             print('device connected')
             connected = True
             if shadow:
-                emp = json.dumps(json_generator())
+                emp = json.dumps(json_generator()) #why does this need to be a string??
                 emp['shadow'] = shadow_name
                 client.publish(unnamed_base_str + "update/delta", emp)
         if msg.payload.decode("utf-8") == "0":
             connected = False
 
     
-def update(client, userdata, msg, name):            #TODO a desired update logic needs to be done, this should also publish to the accepted topic when an update goes through
-    if msg.topic == named_base_str + "update":  #make sure this is an update for the correct device 
+def update(client, userdata, msg, name):
+    if msg.topic == named_base_str + "update":  #make sure this is an update for the correct device  #I believe this SHOULD be an extraneous check but dont want to remove it
         
         decoded_str = json.loads(msg.payload)        #load the payload into a json dict
-        
-        if not os.path.exists(name + "_shadow.json"):    #check if json shadow file missing, if it is then skeletal json file is made for shadow
-                print("shadow not found, making new one")  #this is done here because all following options will require the json
-                empty_dict = json_generator()
-                with open(name + "_shadow.json", "w") as file_out:
-                    json.dump(empty_dict, file_out)
-        
-        if not os.path.exists(name + "_log.json"):    #check if json shadow file missing, if it is then skeletal json file is made for shadow
-                print("log not found, making new one")  #this is done here because all following options will require the json
-                empty = {}
-                with open(name + "_log.json", "w") as file_out:
-                    json.dump(empty, file_out)
 
         if 'desired' in decoded_str['state']:          #check if desired is a field in the json dict
             #This should update desired will all passed keys from update message
-            #any differences betwwen desired and reported state will be handled in delta function
+            #any differences between desired and reported state will be handled in delta function
             print("entered desired")
-            with open(name + "_shadow.json", "r") as file_in:
-                loaded = json.load(file_in)
             for k, v in decoded_str['state']['desired'].items():
-                loaded['state']['desired'][k] = v        #set the desired state of the shadow equal to the received message
-            with open(name + "_shadow.json", 'w') as file_out:
-                json.dump(loaded, file_out)
+                if k in curr_state['state']['reported'] and curr_state['state']['reported'][k] == decoded_str['state']['desired'][k]:
+                    continue
+                curr_state['state']['desired'][k] = v        #set the desired state of the shadow equal to the received message
 
         if 'reported' in decoded_str['state']: #load json here, update current state of device, log data, publish to accepted topic so that device knows data got through
-            with open(name + "_shadow.json", "r") as file_in:
-                shadow = json.load(file_in)
             for k, v in decoded_str['state']['reported'].items():         #this block updates the shadow with the new reported state
-                shadow['state']['reported'][k] = v
-            with open(name + "_shadow.json", "w") as file_out:
-                json.dump(shadow, file_out)
+                curr_state['state']['reported'][k] = v
 
             behaviors(shadow, client)
-
-            with open(name + "_log.json", "r") as file_in:
-                log = json.load(file_in)
-            log.update({datetime.now().strftime('%Y-%m-%d %H:%M:%S'): shadow['state']['reported']})       #this block updates the log with the current reported state of the shadow
-            with open(name + "_log.json", "w") as file_out:
-                json.dump(log, file_out)
             
 
 def delta(client, name):
     #This func should compare desired and reported sub keys and add any differences into the delta key
     #then this should check if the device is connected and if so the keys in delta should be published to the device via the '/update/delta' topic
     #the device will change state to match and then publish a reported update to shadow
-    with open(name + "_shadow.json") as file_in:
-        shadow = json.load(file_in)
-    for k, v in shadow['state']['desired'].copy().items():            #iterate through desired keys
-        if shadow['state']['reported'][k][0] != v:                #if key is in reported and desired value doesnt match reported value
-            shadow['state']['delta'][k] = v
-        if shadow['state']['delta'][k][0] == shadow['state']['reported'][k][0]:
-            del shadow['state']['delta'][k]
-        if shadow['state']['reported'][k][0] == shadow['state']['desired'][k][0]:
-            del shadow['state']['desired'][k]
-
-    print(shadow)
-    print()
-
-    with open(name + "_shadow.json", 'w') as file_out:
-        json.dump(shadow, file_out)
+    for k, v in curr_state['state']['desired'].copy().items():            #iterate through desired keys
+        if k in curr_state['state']['reported']:
+            if curr_state['state']['reported'][k][0] != v:                #if key is in reported and desired value doesnt match reported value
+                curr_state['state']['delta'][k] = v
+        else:
+            curr_state['state']['delta'][k] = v
+            continue
+        if curr_state['state']['delta'][k][0] == curr_state['state']['reported'][k][0]:
+            del curr_state['state']['delta'][k]
+        if curr_state['state']['reported'][k][0] == curr_state['state']['desired'][k][0]:
+            del curr_state['state']['desired'][k]
 
     global connected
     
-    if connected == True and len(shadow['state']['delta']) != 0:
-        print("items in delta")
-        str = json.dumps(shadow['state']['delta'])
+    if connected == True and len(curr_state['state']['delta']) != 0:
+        str = json.dumps(curr_state['state']['delta'])
         print(named_base_str + "update/delta")
         client.publish(named_base_str + "update/delta", str)       #publish keys in delta to device
     
+def parse_tags(client, name):
+    pass
 
+def mytimecalculations(StartTime=None, EndTime=None):
+    """ This only computes the running time. Returns in milliseconds
+    """
+    if isinstance(StartTime, str):
+        try:
+            StartTime = datetime.datetime.strptime(
+                StartTime, "%Y-%m-%d %H:%M:%S.%f")
+        except:
+            StartTime = datetime.datetime.strptime(
+                StartTime, "%Y-%m-%d %H:%M:%S,%f")
+    if isinstance(EndTime, str):
+        try:
+            EndTime = datetime.datetime.strptime(
+                EndTime, "%Y-%m-%d %H:%M:%S.%f")
+        except:
+            EndTime = datetime.datetime.strptime(
+                EndTime, "%Y-%m-%d %H:%M:%S,%f")
+    delta = EndTime - StartTime
+    elapsed_ms = (delta.days * 86400000.0) + (delta.seconds *
+                                              1000.0) + (delta.microseconds / 1000.0)
+    return elapsed_ms
 
 client = mqtt.Client()
 client.on_message = on_message
@@ -199,8 +198,9 @@ client.connect("localhost", 1883, 60)
 
 try:
     client.loop_forever()
-except:
-    logger.warning("Exception raised, writing current state to json shadow: " + json.dumps(curr_state))     #right before client shutdown, write current state to json
+except KeyboardInterrupt:
+    logger.warning("Exception type - " + str(sys.exc_info()[0]))
+    logger.info("Writing current state to json shadow: " + json.dumps(curr_state))     #right before client shutdown, write current state to json
     output_stream = open(device_name + "_shadow.json", "w")
     json.dump(curr_state, output_stream)
     output_stream.close()
