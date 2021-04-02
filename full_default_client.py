@@ -9,7 +9,7 @@ import sys
 import json
 import os
 import logging
-from datetime import datetime
+import datetime
 
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
@@ -49,7 +49,6 @@ def setup_logger(name, log_file, level=logging.INFO):
     return logger
 
 logger = setup_logger('', log_file_name, level=logging.DEBUG)
-time_logger = setup_logger('', 'time.log', level=logging.INFO)
 
 def json_generator():
     empty_dict = {
@@ -84,13 +83,21 @@ def on_connect(client, userdata, flags, rc):
     subscription_setup(client, device_name)
 
 def on_message(client, userdata, msg):
-    logger.debug("Incoming message: topic = " + str(msg.topic) + " message = " + str(msg.payload))
+    #logger.debug("Incoming message: topic = " + str(msg.topic) + " message = " + str(msg.payload))
 
     if msg.topic.find("update") != -1:          #topic contains update
         msg.payload = msg.payload.decode("utf-8")
+
+        StartClock = datetime.datetime.now()                                                    # Starting clock HERE
+
         update(client, userdata, msg, device_name)
-        logger.debug("State after update function" + json.dumps(curr_state))
+        #logger.debug("State after update function" + json.dumps(curr_state))
         delta(client, device_name)
+
+        EndClock = datetime.datetime.now()
+        TIMER = mytimecalculations(StartClock, EndClock)
+        logger.info(TIMER)
+
         print(curr_state)
         logger.info("State after /update message processed: " + json.dumps(curr_state))
 
@@ -144,15 +151,34 @@ def delta(client, name):
         if curr_state['state']['reported'][k][0] == curr_state['state']['desired'][k][0]:
             del curr_state['state']['desired'][k]
 
+    #once the curr state has been finalized, call parse_tags() here
+    if not shadow:
+        parse_tags(client, name)
+
     global connected
     
     if connected == True and len(curr_state['state']['delta']) != 0:
         str = json.dumps(curr_state['state']['delta'])
-        print(named_base_str + "update/delta")
-        client.publish(named_base_str + "update/delta", str)       #publish keys in delta to device
+        client.publish(unnamed_base_str + "update/delta", str)       #publish keys in delta to device
     
 def parse_tags(client, name):
-    pass
+    tag_list = []
+    
+    for k, v in curr_state['state']['reported'].items():   #DONT modify curr_state in this loop
+        if len(v) > 1:  
+            for x in v:
+                if not str(x).isnumeric():
+                    tag_list.append(x)
+
+    for x in tag_list:
+        sub_dict = json_generator()
+        for k, v in curr_state['state']['reported'].items():
+            for i in v:
+                if i == x:
+                    sub_dict['state']['reported'][k] = v[0]
+        print(x)
+        print(sub_dict)
+        client.publish(unnamed_base_str + "name/" + x + "/update", json.dumps(sub_dict))
 
 def mytimecalculations(StartTime=None, EndTime=None):
     """ This only computes the running time. Returns in milliseconds
