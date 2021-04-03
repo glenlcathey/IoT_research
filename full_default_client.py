@@ -107,9 +107,9 @@ def on_message(client, userdata, msg):
             print('device connected')
             connected = True
             if shadow:
-                emp = json.dumps(json_generator()) #why does this need to be a string??
-                emp['shadow'] = shadow_name
-                client.publish(unnamed_base_str + "update/delta", emp)
+                emp = json_generator() #why does this need to be a string??
+                emp['shadow'] = sys.argv[2]
+                client.publish(unnamed_base_str + "update/delta", json.dumps(emp))
         if msg.payload.decode("utf-8") == "0":
             connected = False
 
@@ -164,11 +164,13 @@ def delta(client, name):
 def parse_tags(client, name):
     tag_list = []
     
-    for k, v in curr_state['state']['reported'].items():   #DONT modify curr_state in this loop
+    for k, v in curr_state['state']['reported'].items():   #DONT modify curr_state in this loop, just generate list of present tags
         if len(v) > 1:  
             for x in v:
                 if not str(x).isnumeric():
                     tag_list.append(x)
+
+    print(tag_list)
 
     for x in tag_list:
         sub_dict = json_generator()
@@ -208,17 +210,31 @@ client.on_connect = on_connect
 client.username_pw_set(username="counter_shadow", password="counter_password")
 
 #load in last recorded state from json, if json not found then make shadow file
-if os.path.exists(device_name + "_shadow.json"):
-    file_in = open(device_name + "_shadow.json")
-    curr_state = json.load(file_in)
-    file_in.close()
-else:
-    print("shadow not found, making new one")
-    logger.info("shadow json not found, creating file " + device_name + "_shadow.json")
-    curr_state = json_generator()
-    file_out = open(device_name + "_shadow.json", "w")
-    json.dump(curr_state, file_out)
-    file_out.close
+if not shadow:
+    if os.path.exists(device_name + "_shadow.json"):
+        file_in = open(device_name + "_shadow.json")
+        curr_state = json.load(file_in)
+        file_in.close()
+    else:
+        print("shadow not found, making new one")
+        logger.info("shadow json not found, creating file " + device_name + "_shadow.json")
+        curr_state = json_generator()
+        file_out = open(device_name + "_shadow.json", "w")
+        json.dump(curr_state, file_out)
+        file_out.close
+if shadow:
+    shadow_file_name = device_name + "_" + sys.argv[2] + "_shadow.json"
+    if os.path.exists(shadow_file_name):
+        file_in = open(shadow_file_name)
+        curr_state = json.load(file_in)
+        file_in.close()
+    else:
+        print("shadow not found, making new one")
+        logger.info("shadow json not found, creating file " + shadow_file_name)
+        curr_state = json_generator()
+        file_out = open(shadow_file_name, "w")
+        json.dump(curr_state, file_out)
+        file_out.close
 
 client.connect("localhost", 1883, 60)
 

@@ -61,7 +61,7 @@ def parse_delta(x):
 
 
 def sub_to_named_shadow(shadow_name):
-    client.subscribe(bytes(BASE_STR + "name/" + shadow_name + "/update/delta"))
+    client.subscribe(BASE_STR + "name/" + shadow_name + "/update/delta")
 
 
 client = mqtt.Client()
