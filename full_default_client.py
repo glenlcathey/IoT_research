@@ -88,11 +88,16 @@ def on_message(client, userdata, msg):
     if msg.topic.find("update") != -1:          #topic contains update
         msg.payload = msg.payload.decode("utf-8")
 
+        #make list
+
         StartClock = datetime.datetime.now()                                                    # Starting clock HERE
 
         update(client, userdata, msg, device_name)
         #logger.debug("State after update function" + json.dumps(curr_state))
-        delta(client, device_name)
+        delta(client, device_name)                                                              #NOTE does delta need to be called here or only after desired message received
+        parse_tags()
+
+        #potential publish to device 
 
         EndClock = datetime.datetime.now()
         TIMER = mytimecalculations(StartClock, EndClock)
@@ -242,6 +247,12 @@ try:
     client.loop_forever()
 except KeyboardInterrupt:
     logger.warning("Exception type - " + str(sys.exc_info()[0]))
+    logger.info("Writing current state to json shadow: " + json.dumps(curr_state))     #right before client shutdown, write current state to json
+    output_stream = open(device_name + "_shadow.json", "w")
+    json.dump(curr_state, output_stream)
+    output_stream.close()
+except Exception:
+    logger.critical("Unexpected exception of type - " + str(sys.exc_info()[0]))
     logger.info("Writing current state to json shadow: " + json.dumps(curr_state))     #right before client shutdown, write current state to json
     output_stream = open(device_name + "_shadow.json", "w")
     json.dump(curr_state, output_stream)
