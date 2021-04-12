@@ -58,6 +58,8 @@ def on_connect(client, userdata, flags, rc):
     subscription_setup(client, device_name)
 
 def on_message(client, userdata, msg):
+    print("topic = " + msg.topic)
+    print("msg = " + msg.payload.decode("utf-8"))
     if msg.topic.find("update") != -1:          #topic contains update
         msg.payload = msg.payload.decode("utf-8")
         update(client, userdata, msg, device_name)
@@ -134,10 +136,11 @@ def delta(client, name):
         if k in shadow['state']['reported']:
             if shadow['state']['reported'][k] != v:                #if key is in reported and desired value doesnt match reported value
                 shadow['state']['delta'][k] = v
-            if shadow['state']['delta'][k] == shadow['state']['reported'][k]:
-                del shadow['state']['delta'][k]
             if shadow['state']['reported'][k] == shadow['state']['desired'][k]:
                 del shadow['state']['desired'][k]
+            if k in shadow['state']['delta']:
+                if shadow['state']['delta'][k] == shadow['state']['reported'][k]:
+                    del shadow['state']['delta'][k]    
         else:
             shadow['state']['delta'][k] = v
 
