@@ -1,0 +1,252 @@
+/Users/glencathey/.espressif/python_env/idf4.2_py3.9_env/bin/python /Users/glencathey/esp/esp-idf/tools/idf.py -p /dev/cu.SLAB_USBtoUART monitor
+glencathey@Glens-MacBook-Pro mqtt % /Users/glencathey/.espressif/python_env/idf4.2_py3.9_env/bin/python /Users/glencathey/esp/esp-idf/tools/idf.py -p /dev/cu.SLAB_USBtoUART monitor
+Executing action: monitor
+Running idf_monitor in directory /Users/glencathey/Desktop/ESP_TESTING/mqtt
+Executing "/Users/glencathey/.espressif/python_env/idf4.2_py3.9_env/bin/python /Users/glencathey/esp/esp-idf/tools/idf_monitor.py -p /dev/cu.SLAB_USBtoUART -b 115200 --toolchain-prefix xtensa-esp32-elf- /Users/glencathey/Desktop/ESP_TESTING/mqtt/build/mqtt.elf -m '/Users/glencathey/.espressif/python_env/idf4.2_py3.9_env/bin/python' '/Users/glencathey/esp/esp-idf/tools/idf.py' '-p' '/dev/cu.SLAB_USBtoUART'"...
+--- idf_monitor on /dev/cu.SLAB_USBtoUART 115200 ---
+--- Quit: Ctrl+] | Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H ---
+ets Jun  8 2016 00:22:57
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:4
+load:0x3fff0034,len:7124
+load:0x40078000,len:13212
+load:0x40080400,len:4568
+0x40080400: _init at ??:?
+
+entry 0x400806f4
+I (29) boot: ESP-IDF v4.2-dirty 2nd stage bootloader
+I (29) boot: compile time 15:38:28
+I (29) boot: chip revision: 1
+I (32) boot_comm: chip revision: 1, min. bootloader chip revision: 0
+I (39) boot.esp32: SPI Speed      : 40MHz
+I (44) boot.esp32: SPI Mode       : DIO
+I (48) boot.esp32: SPI Flash Size : 4MB
+I (53) boot: Enabling RNG early entropy source...
+I (58) boot: Partition Table:
+I (62) boot: ## Label            Usage          Type ST Offset   Length
+I (69) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (77) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (84) boot:  2 factory          factory app      00 00 00010000 00100000
+I (92) boot: End of partition table
+I (96) boot_comm: chip revision: 1, min. application chip revision: 0
+I (103) esp_image: segment 0: paddr=0x00010020 vaddr=0x3f400020 size=0x1da04 (121348) map
+I (158) esp_image: segment 1: paddr=0x0002da2c vaddr=0x3ffb0000 size=0x025ec (  9708) load
+I (162) esp_image: segment 2: paddr=0x00030020 vaddr=0x400d0020 size=0x92904 (600324) map
+0x400d0020: _stext at ??:?
+
+I (393) esp_image: segment 3: paddr=0x000c292c vaddr=0x3ffb25ec size=0x01264 (  4708) load
+I (396) esp_image: segment 4: paddr=0x000c3b98 vaddr=0x40080000 size=0x00404 (  1028) load
+0x40080000: _WindowOverflow4 at /Users/glencathey/esp/esp-idf/components/freertos/xtensa/xtensa_vectors.S:1730
+
+I (401) esp_image: segment 5: paddr=0x000c3fa4 vaddr=0x40080404 size=0x151b8 ( 86456) load
+I (459) boot: Loaded app from partition at offset 0x10000
+I (459) boot: Disabling RNG early entropy source...
+I (459) cpu_start: Pro cpu up.
+I (463) cpu_start: Application information:
+I (468) cpu_start: Project name:     mqtt
+I (472) cpu_start: App version:      1
+I (477) cpu_start: Compile time:     Apr 11 2021 15:38:22
+I (483) cpu_start: ELF file SHA256:  96d514ab5961478d...
+I (489) cpu_start: ESP-IDF:          v4.2-dirty
+I (494) cpu_start: Starting app cpu, entry point is 0x400818a8
+0x400818a8: call_start_cpu1 at /Users/glencathey/esp/esp-idf/components/esp32/cpu_start.c:287
+
+I (0) cpu_start: App cpu up.
+I (504) heap_init: Initializing. RAM available for dynamic allocation:
+I (511) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM
+I (517) heap_init: At 3FFB7EC0 len 00028140 (160 KiB): DRAM
+I (523) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM
+I (530) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM
+I (536) heap_init: At 400955BC len 0000AA44 (42 KiB): IRAM
+I (542) cpu_start: Pro cpu start user code
+I (561) spi_flash: detected chip: generic
+I (562) spi_flash: flash io: dio
+I (562) cpu_start: Starting scheduler on PRO CPU.
+I (0) cpu_start: Starting scheduler on APP CPU.
+I (665) wifi:wifi driver task: 3ffc04ac, prio:23, stack:6656, core=0
+I (665) system_api: Base MAC address is not set
+I (665) system_api: read default base MAC address from EFUSE
+I (685) wifi:wifi firmware version: 1865b55
+I (685) wifi:wifi certification version: v7.0
+I (685) wifi:config NVS flash: enabled
+I (685) wifi:config nano formating: disabled
+I (695) wifi:Init data frame dynamic rx buffer num: 32
+I (695) wifi:Init management frame dynamic rx buffer num: 32
+I (705) wifi:Init management short buffer num: 32
+I (705) wifi:Init dynamic tx buffer num: 32
+I (715) wifi:Init static rx buffer size: 1600
+I (715) wifi:Init static rx buffer num: 10
+I (725) wifi:Init dynamic rx buffer num: 32
+I (725) wifi_init: rx ba win: 6
+I (725) wifi_init: tcpip mbox: 32
+I (735) wifi_init: udp mbox: 6
+I (735) wifi_init: tcp mbox: 6
+I (735) wifi_init: tcp tx win: 5744
+I (745) wifi_init: tcp rx win: 5744
+I (745) wifi_init: tcp mss: 1440
+I (755) wifi_init: WiFi IRAM OP enabled
+I (755) wifi_init: WiFi RX IRAM OP enabled
+I (865) phy: phy_version: 4500, 0cd6843, Sep 17 2020, 15:37:07, 0, 0
+I (865) wifi:mode : sta (ac:67:b2:53:83:8c)
+{
+        "state":        {
+                "reported":     {
+                        "value":        0
+                }
+        }
+}I (995) wifi:new:<4,0>, old:<1,0>, ap:<255,255>, sta:<4,0>, prof:1
+I (995) wifi:state: init -> auth (b0)
+I (1005) wifi:state: auth -> assoc (0)
+I (1005) wifi:state: assoc -> run (10)
+I (1115) wifi:connected with NETGEAR68, aid = 2, channel 4, BW20, bssid = bc:a5:11:10:5d:1e
+I (1115) wifi:security: WPA2-PSK, phy: bgn, rssi: -38
+I (1115) wifi:pm start, type: 1
+
+I (1155) wifi:AP's beacon interval = 102400 us, DTIM period = 1
+I (3155) esp_netif_handlers: sta ip: 192.168.1.13, mask: 255.255.255.0, gw: 192.168.1.1
+client connected to broker
+calling connected func now
+entered func
+connected topic: devices/esp32/connected
+publish connected message with result code: 14104
+ret from publish func
+subscription return code: 29910
+returned from subscription setup
+Guru Meditation Error: Core  0 panic'ed (LoadProhibited). Exception was unhandled.
+
+Core  0 register dump:
+PC      : 0x400014fd  PS      : 0x00060f30  A0      : 0x80155b44  A1      : 0x3ffc7360  
+A2      : 0x00000000  A3      : 0xfffffffc  A4      : 0x000000ff  A5      : 0x0000ff00  
+A6      : 0x00ff0000  A7      : 0xff000000  A8      : 0x00000000  A9      : 0x3ffc7320  
+A10     : 0x00000000  A11     : 0xffffffff  A12     : 0x00000001  A13     : 0x00000000  
+A14     : 0x00000001  A15     : 0x00000000  SAR     : 0x00000019  EXCCAUSE: 0x0000001c  
+EXCVADDR: 0x00000000  LBEG    : 0x400014fd  LEND    : 0x4000150d  LCOUNT  : 0xffffffff  
+
+Backtrace:0x400014fa:0x3ffc7360 0x40155b41:0x3ffc7370 0x4014a755:0x3ffc7680 0x400d5799:0x3ffc76d0 0x400d5cf2:0x3ffc76f0 0x400d5d39:0x3ffc7710 0x400d63b5:0x3ffc7730 0x400d6728:0x3ffc7760 0x4008787d:0x3ffc7790
+0x40155b41: _vfprintf_r at /builds/idf/crosstool-NG/.build/HOST-x86_64-apple-darwin12/xtensa-esp32-elf/src/newlib/newlib/libc/stdio/vfprintf.c:1528
+
+0x4014a755: printf at /builds/idf/crosstool-NG/.build/HOST-x86_64-apple-darwin12/xtensa-esp32-elf/src/newlib/newlib/libc/stdio/printf.c:56 (discriminator 5)
+
+0x400d5799: mqtt_event_handler at /Users/glencathey/Desktop/ESP_TESTING/mqtt/build/../main/main.c:116
+
+0x400d5cf2: esp_mqtt_dispatch_event at /Users/glencathey/esp/esp-idf/components/mqtt/esp-mqtt/mqtt_client.c:893
+
+0x400d5d39: esp_mqtt_dispatch_event_with_msgid at /Users/glencathey/esp/esp-idf/components/mqtt/esp-mqtt/mqtt_client.c:884
+
+0x400d63b5: mqtt_process_receive at /Users/glencathey/esp/esp-idf/components/mqtt/esp-mqtt/mqtt_client.c:1179 (discriminator 15)
+
+0x400d6728: esp_mqtt_task at /Users/glencathey/esp/esp-idf/components/mqtt/esp-mqtt/mqtt_client.c:1347
+
+0x4008787d: vPortTaskWrapper at /Users/glencathey/esp/esp-idf/components/freertos/xtensa/port.c:143
+
+
+
+ELF file SHA256: 96d514ab5961478d
+
+Rebooting...
+ets Jun  8 2016 00:22:57
+
+rst:0xc (SW_CPU_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:4
+load:0x3fff0034,len:7124
+load:0x40078000,len:13212
+load:0x40080400,len:4568
+0x40080400: _init at ??:?
+
+entry 0x400806f4
+I (29) boot: ESP-IDF v4.2-dirty 2nd stage bootloader
+I (29) boot: compile time 15:38:28
+I (29) boot: chip revision: 1
+I (32) boot_comm: chip revision: 1, min. bootloader chip revision: 0
+I (39) boot.esp32: SPI Speed      : 40MHz
+I (44) boot.esp32: SPI Mode       : DIO
+I (48) boot.esp32: SPI Flash Size : 4MB
+I (53) boot: Enabling RNG early entropy source...
+I (58) boot: Partition Table:
+I (62) boot: ## Label            Usage          Type ST Offset   Length
+I (69) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (77) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (84) boot:  2 factory          factory app      00 00 00010000 00100000
+I (92) boot: End of partition table
+I (96) boot_comm: chip revision: 1, min. application chip revision: 0
+I (103) esp_image: segment 0: paddr=0x00010020 vaddr=0x3f400020 size=0x1da04 (121348) map
+I (158) esp_image: segment 1: paddr=0x0002da2c vaddr=0x3ffb0000 size=0x025ec (  9708) load
+I (163) esp_image: segment 2: paddr=0x00030020 vaddr=0x400d0020 size=0x92904 (600324) map
+0x400d0020: _stext at ??:?
+
+I (393) esp_image: segment 3: paddr=0x000c292c vaddr=0x3ffb25ec size=0x01264 (  4708) load
+I (396) esp_image: segment 4: paddr=0x000c3b98 vaddr=0x40080000 size=0x00404 (  1028) load
+0x40080000: _WindowOverflow4 at /Users/glencathey/esp/esp-idf/components/freertos/xtensa/xtensa_vectors.S:1730
+
+I (401) esp_image: segment 5: paddr=0x000c3fa4 vaddr=0x40080404 size=0x151b8 ( 86456) load
+I (459) boot: Loaded app from partition at offset 0x10000
+I (459) boot: Disabling RNG early entropy source...
+I (459) cpu_start: Pro cpu up.
+I (463) cpu_start: Application information:
+I (468) cpu_start: Project name:     mqtt
+I (472) cpu_start: App version:      1
+I (477) cpu_start: Compile time:     Apr 11 2021 15:38:22
+I (483) cpu_start: ELF file SHA256:  96d514ab5961478d...
+I (489) cpu_start: ESP-IDF:          v4.2-dirty
+I (494) cpu_start: Starting app cpu, entry point is 0x400818a8
+0x400818a8: call_start_cpu1 at /Users/glencathey/esp/esp-idf/components/esp32/cpu_start.c:287
+
+I (486) cpu_start: App cpu up.
+I (505) heap_init: Initializing. RAM available for dynamic allocation:
+I (511) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM
+I (518) heap_init: At 3FFB7EC0 len 00028140 (160 KiB): DRAM
+I (524) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM
+I (530) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM
+I (537) heap_init: At 400955BC len 0000AA44 (42 KiB): IRAM
+I (543) cpu_start: Pro cpu start user code
+I (561) spi_flash: detected chip: generic
+I (562) spi_flash: flash io: dio
+I (562) cpu_start: Starting scheduler on PRO CPU.
+I (0) cpu_start: Starting scheduler on APP CPU.
+I (665) wifi:wifi driver task: 3ffc04ac, prio:23, stack:6656, core=0
+I (665) system_api: Base MAC address is not set
+I (665) system_api: read default base MAC address from EFUSE
+I (685) wifi:wifi firmware version: 1865b55
+I (685) wifi:wifi certification version: v7.0
+I (685) wifi:config NVS flash: enabled
+I (685) wifi:config nano formating: disabled
+I (695) wifi:Init data frame dynamic rx buffer num: 32
+I (695) wifi:Init management frame dynamic rx buffer num: 32
+I (705) wifi:Init management short buffer num: 32
+I (705) wifi:Init dynamic tx buffer num: 32
+I (715) wifi:Init static rx buffer size: 1600
+I (715) wifi:Init static rx buffer num: 10
+I (725) wifi:Init dynamic rx buffer num: 32
+I (725) wifi_init: rx ba win: 6
+I (725) wifi_init: tcpip mbox: 32
+I (735) wifi_init: udp mbox: 6
+I (735) wifi_init: tcp mbox: 6
+I (735) wifi_init: tcp tx win: 5744
+I (745) wifi_init: tcp rx win: 5744
+I (745) wifi_init: tcp mss: 1440
+I (755) wifi_init: WiFi IRAM OP enabled
+I (755) wifi_init: WiFi RX IRAM OP enabled
+I (855) phy: phy_version: 4500, 0cd6843, Sep 17 2020, 15:37:07, 0, 0
+I (855) wifi:mode : sta (ac:67:b2:53:83:8c)
+{
+        "state":        {
+                "reported":     {
+                        "value":        0
+                }
+        }
+}I (975) wifi:new:<4,0>, old:<1,0>, ap:<255,255>, sta:<4,0>, prof:1
+I (975) wifi:state: init -> auth (b0)
+I (985) wifi:state: auth -> assoc (0)
+I (995) wifi:state: assoc -> run (10)
+I (1095) wifi:connected with NETGEAR68, aid = 2, channel 4, BW20, bssid = bc:a5:11:10:5d:1e
+I (1095) wifi:security: WPA2-PSK, phy: bgn, rssi: -34
+I (1105) wifi:pm start, type: 1
+
+I (1185) wifi:AP's beacon interval = 102400 us, DTIM period = 1
