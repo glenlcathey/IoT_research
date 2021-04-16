@@ -175,7 +175,9 @@ def parse_tags(client, name):
                 if not str(x).isnumeric():
                     tag_list.append(x)
 
-    print(tag_list)
+    tag_dict = {{x for x in v if not str(x).isnumeric()} for k, v in curr_state['state']['reported'].items() if (len(v) > 1)} #I think this will have duplicates
+
+    print(tag_dict)
 
     for x in tag_list:
         sub_dict = json_generator()
@@ -251,9 +253,11 @@ except KeyboardInterrupt:
     output_stream = open(device_name + "_shadow.json", "w")
     json.dump(curr_state, output_stream)
     output_stream.close()
+"""
 except Exception:
     logger.critical("Unexpected exception of type - " + str(sys.exc_info()[0]))
     logger.info("Writing current state to json shadow: " + json.dumps(curr_state))     #right before client shutdown, write current state to json
     output_stream = open(device_name + "_shadow.json", "w")
     json.dump(curr_state, output_stream)
     output_stream.close()
+"""
