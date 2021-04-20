@@ -20,6 +20,7 @@ import paho.mqtt.client as mqtt
 
 #core frequently interacted with variables setup here
 curr_state = {}
+publish_dict = {}
 shadow = False
 connected = False
 device_name = 'device'   #defaults to 'device'
@@ -37,6 +38,11 @@ if shadow:
     log_file_name = log_file_name + "_" + sys.argv[2] #NOTE probably cleaner to remove these cmd line arg calls and just do one at the top
 log_file_name = log_file_name + ".log"
     
+def resolve_publishes(client):
+    global publish_dict
+    for k, v in publish_dict.items():
+        client.publish(k, v)
+    publish_dict = {}
 
 def setup_logger(name, log_file, level=logging.INFO):
     """Function setup as many loggers as you want"""
@@ -95,13 +101,15 @@ def on_message(client, userdata, msg):
         update(client, userdata, msg, device_name)
         #logger.debug("State after update function" + json.dumps(curr_state))
         delta(client, device_name)                                                              #NOTE does delta need to be called here or only after desired message received
-        parse_tags()
+        parse_tags(client, device_name)
 
         #potential publish to device 
 
         EndClock = datetime.datetime.now()
         TIMER = mytimecalculations(StartClock, EndClock)
         logger.info(TIMER)
+
+        resolve_publishes(client)
 
         print(curr_state)
         logger.info("State after /update message processed: " + json.dumps(curr_state))
@@ -164,9 +172,12 @@ def delta(client, name):
     
     if connected == True and len(curr_state['state']['delta']) != 0:
         str = json.dumps(curr_state['state']['delta'])
-        client.publish(unnamed_base_str + "update/delta", str)       #publish keys in delta to device
+        #client.publish(unnamed_base_str + "update/delta", str)       #publish keys in delta to device
+        topic_str = unnamed_base_str + "update/delta"
+        publish_dict[topic_str] = str
     
 def parse_tags(client, name):
+    """
     tag_list = []
     
     for k, v in curr_state['state']['reported'].items():   #DONT modify curr_state in this loop, just generate list of present tags
@@ -174,20 +185,24 @@ def parse_tags(client, name):
             for x in v:
                 if not str(x).isnumeric():
                     tag_list.append(x)
+    """
 
-    tag_dict = {{x for x in v if not str(x).isnumeric()} for k, v in curr_state['state']['reported'].items() if (len(v) > 1)} #I think this will have duplicates
+    tag_list = [x for x in v if not str(x).isnumeric() for k, v in curr_state['state']['reported'].items() if (len(v) > 1)] #I think this will have duplicates
+    tag_list.set() #remove duplicates
 
+    print("printing list comprehension result")
     print(tag_dict)
+    print()
 
-    for x in tag_list:
+    for tag in tag_list:
         sub_dict = json_generator()
-        for k, v in curr_state['state']['reported'].items():
-            for i in v:
-                if i == x:
-                    sub_dict['state']['reported'][k] = v[0]
-        print(x)
-        print(sub_dict)
-        client.publish(unnamed_base_str + "name/" + x + "/update", json.dumps(sub_dict))
+        for k, values in curr_state['state']['reported'].items():
+            for value in values:
+                if value == tag:
+                    sub_dict['state']['reported'][k] = value[0]
+        #client.publish(unnamed_base_str + "name/" + x + "/update", json.dumps(sub_dict))
+        topic_str = unnamed_base_str + "name/" + tag + "/update"
+        publish_dict[topic_str] = json.dumps(sub_dict)
 
 def mytimecalculations(StartTime=None, EndTime=None):
     """ This only computes the running time. Returns in milliseconds
