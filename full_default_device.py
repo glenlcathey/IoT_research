@@ -21,7 +21,9 @@ shadow_list = []
 data = {                                                                                #NOTE this dict obj holds state data, change keys to reflect device state
     "state": {
         "reported": {
-            "value": [0, "WARNING", "SENSOR"],                                          #NOTE each key value pair will hold an array where the first index is the value and every other is a tag
+            "motor1": [0, "WARNING", "SENSOR"],                                          #NOTE each key value pair will hold an array where the first index is the value and every other is a tag
+            "temp_sens": [0, "SENSOR", "CRITICAL"],
+            "env_variable": [0, "WARNING", "CRITICAL"]
         }
     }
 }
@@ -75,10 +77,15 @@ client.subscribe(BASE_STR + "update/delta")
 client.loop_start()          
 
 while True:                                                                         #NOTE unique device behavior must be defined in this loop in order to continually execute
-    print(type(data['state']['reported']['value'][0]))
-    data['state']['reported']['value'][0] = data['state']['reported']['value'][0] + 1
+    data['state']['reported']['motor1'][0] = data['state']['reported']['motor1'][0] + 1
+    data['state']['reported']['temp_sens'][0] = data['state']['reported']['temp_sens'][0] + 3
+    if data['state']['reported']['env_variable'][0] == 0:
+        data['state']['reported']['env_variable'][0] = 1
+    else:
+        data['state']['reported']['env_variable'][0] = 0
     tag_behaviors()
 
+    print(data)
     state = json.dumps(data)
     client.publish(BASE_STR + "update", state, qos=1)                                      #publish curr state to unnamed shadow
     time.sleep(1)

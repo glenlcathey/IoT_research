@@ -187,11 +187,11 @@ def parse_tags(client, name):
                     tag_list.append(x)
     """
 
-    tag_list = [x for x in v if not str(x).isnumeric() for k, v in curr_state['state']['reported'].items() if (len(v) > 1)] #I think this will have duplicates
-    tag_list.set() #remove duplicates
+    tag_list = [x for key, value in curr_state['state']['reported'].items() if (len(value) > 1) for x in value if not str(x).isnumeric()] #I think this will have duplicates
+    tag_list = set(tag_list) #remove duplicates
 
     print("printing list comprehension result")
-    print(tag_dict)
+    print(tag_list)
     print()
 
     for tag in tag_list:
@@ -199,9 +199,11 @@ def parse_tags(client, name):
         for k, values in curr_state['state']['reported'].items():
             for value in values:
                 if value == tag:
-                    sub_dict['state']['reported'][k] = value[0]
+                    sub_dict['state']['reported'][k] = values[0]
         #client.publish(unnamed_base_str + "name/" + x + "/update", json.dumps(sub_dict))
         topic_str = unnamed_base_str + "name/" + tag + "/update"
+        print("Printing sub dict for " + tag + ": ")
+        print(sub_dict)
         publish_dict[topic_str] = json.dumps(sub_dict)
 
 def mytimecalculations(StartTime=None, EndTime=None):
