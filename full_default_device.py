@@ -41,7 +41,7 @@ def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
 
 def on_message(client, userdata, msg):
-    topic = msg.topic.decode("utf-8")
+    topic = msg.topic
     msg = msg.payload.decode("utf-8")
     print(topic)
     print(msg)
@@ -68,6 +68,8 @@ c.will_set("devices/" + name + "/connected", 0, qos=1, retain=True)
 #c.username_pw_set(username="", password="")                                        #NOTE must insert username and password if using authenticated broker
 
 c.connect(ip, port, 60)
+c.publish("devices/" + name + "/connected", 1, qos=1, retain=True)
+c.subscribe(base_str + "update/delta")
 c.loop_start()          
 
 while True:                                                                         #NOTE unique device behavior must be defined in this loop in order to continually execute

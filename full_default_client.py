@@ -139,13 +139,10 @@ def delta(client, name):
         else:
             shadow['state']['delta'][k] = v
             continue
-        if shadow['state']['delta'][k] == shadow['state']['reported'][k]:
+        if k in shadow['state']['delta'] and shadow['state']['delta'][k] == shadow['state']['reported'][k]:
             del shadow['state']['delta'][k]
         if shadow['state']['reported'][k] == shadow['state']['desired'][k]:
             del shadow['state']['desired'][k]
-
-    print(shadow)
-    print()
 
     with open(name + "_shadow.json", 'w') as file_out:
         json.dump(shadow, file_out)
@@ -155,6 +152,7 @@ def delta(client, name):
     if connected == True and len(shadow['state']['delta']) != 0:
         str = json.dumps(shadow['state']['delta'])
         client.publish(named_base_str + "update/delta", str)       #publish keys in delta to device
+        print("published delta keys to device")
     
 
 
