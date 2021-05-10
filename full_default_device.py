@@ -21,15 +21,13 @@ shadow_list = []
 data = {                                                                                #NOTE this dict obj holds state data, change keys to reflect device state
     "state": {
         "reported": {
-            "motor1": [0, "WARNING", "SENSOR"],                                          #NOTE each key value pair will hold an array where the first index is the value and every other is a tag
-            "temp_sens": [0, "SENSOR", "CRITICAL"],
-            "env_variable": [0, "WARNING", "CRITICAL"]
+            "value": [0]
         }
     }
 }
 
 def tag_behaviors():
-    x = 5
+    pass
 
 def on_connect(client, userdata, flags, rc):
     print("Connected to broker with result code "+str(rc))
@@ -49,11 +47,10 @@ def on_message(client, userdata, msg):
 
 
 def parse_delta(x):
+    print(x)
     for k, v in x.items():
-        print(v)
-        print(type(v))
         if k in data['state']['reported']:
-            data['state']['reported'][k][0] = v[0]                                            #NOTE only the desired value is modifiable as the tag behavior is defined at the device level
+            data['state']['reported'][k] = v                                            #NOTE only the desired value is modifiable as the tag behavior is defined at the device level
         else:
             temp_dict = [v]
             data['state']['reported'][k] = temp_dict
@@ -77,15 +74,9 @@ client.subscribe(BASE_STR + "update/delta")
 client.loop_start()          
 
 while True:                                                                         #NOTE unique device behavior must be defined in this loop in order to continually execute
-    data['state']['reported']['motor1'][0] = data['state']['reported']['motor1'][0] + 1
-    data['state']['reported']['temp_sens'][0] = data['state']['reported']['temp_sens'][0] + 3
-    if data['state']['reported']['env_variable'][0] == 0:
-        data['state']['reported']['env_variable'][0] = 1
-    else:
-        data['state']['reported']['env_variable'][0] = 0
     tag_behaviors()
 
     print(data)
     state = json.dumps(data)
     client.publish(BASE_STR + "update", state, qos=1)                                      #publish curr state to unnamed shadow
-    time.sleep(1)
+    time.sleep(5)

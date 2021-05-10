@@ -11,6 +11,7 @@ import os
 import logging
 import datetime
 import argparse
+import math
 
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
@@ -18,26 +19,24 @@ def install(package):
 install("paho-mqtt") #ensure mqtt library installed
 import paho.mqtt.client as mqtt
 
+#timing variables defined here
+timing = []                 #list holding the average timing for each number of tags
+num_trials = 0              #int holding how many trials to do for each number of tags
+trial_counter = 0           #int counter var holding the current number of trials done for the current number of tags (gets reset with each tag addition)
+num_trials_modifier = 0.0   #float to use as modifier for each time i.e. if num trials is 5 this will be 0.2. mult each result by this value and add it to the related timing array index
+num_tags = 0                #the number of tags to incriment to 
+timing_file = ""            #the file to write timing results to
+done = False
 
 #core frequently interacted with variables setup here
 curr_state = {}
 publish_dict = {}
 shadow = False
 connected = False
-device_name = 'device'   #defaults to 'device'
-if len(sys.argv) > 1:
-    device_name = sys.argv[1]
-    
-named_base_str = "devices/" + device_name + "/shadow/"
-unnamed_base_str = named_base_str
-if len(sys.argv) > 2:
-    named_base_str = named_base_str + "name/" + sys.argv[2] + "/"
-    shadow = True
-
-log_file_name = device_name
-if shadow:
-    log_file_name = log_file_name + "_" + sys.argv[2] #NOTE probably cleaner to remove these cmd line arg calls and just do one at the top
-log_file_name = log_file_name + ".log"
+device_name = ""   #defaults to 'device'
+named_base_str = ""
+unnamed_base_str = ""
+log_file_name = ""
     
 def resolve_publishes(client):
     global publish_dict
@@ -54,8 +53,6 @@ def setup_logger(name, log_file, level=logging.INFO):
     logger.setLevel(level)
     logger.addHandler(handler)
     return logger
-
-logger = setup_logger('', log_file_name, level=logging.DEBUG)
 
 def json_generator():
     empty_dict = {
@@ -74,12 +71,36 @@ def json_generator():
     
     return empty_dict
 
-def behaviors(cur_state, client):           #Define client specific behaviors in this function.
-    pass
+def behaviors():           #Define client specific behaviors in this function.
+    #print("enter behaviours")
+    #print(curr_state)
+    global num_tags
+    for key, value in curr_state['state']['reported'].items():
+        if len(value) <=  num_tags:
+            tag_str = "TAG_" + str(len(value))
+            curr_state['state']['desired'][key] = value.copy()
+            curr_state['state']['desired'][key].append(tag_str)
+    #print("leaving behaviours")
+    #print(curr_state)
 
 def parse_args():
     parser = argparse.ArgumentParser()
 
+    parser.add_argument(
+        "-d",
+        "--device_name",
+        type=str,
+        required=False,
+        default='device',
+        help="Name of the device. Used for MQTT topics. Defaults to 'device'",
+    )
+    parser.add_argument(
+        "-s",
+        "--shadow",
+        type=str,
+        required=False,
+        help="If present, indicates this client is a tag shadow.",
+    )
     parser.add_argument(
         "-n",
         "--num_tags",
@@ -101,6 +122,7 @@ def parse_args():
         required=False,
         help="File to write timing results to",
     )
+    
 
     args = parser.parse_args()
     print(args)
@@ -108,17 +130,20 @@ def parse_args():
     return args
 
 
-def subscription_setup(client, name):      #TODO add the rest of aws api subscription setup
+def subscription_setup(client):      #TODO add the rest of aws api subscription setup
+    global named_base_str
+    global device_name
     client.subscribe(named_base_str + "update")
     client.subscribe(named_base_str + "get")
-    client.subscribe("devices/" + name + "/connected")
+    print("device bname = " + device_name)
+    client.subscribe("devices/" + device_name + "/connected")
     print("successfully setup subscriptions")
     
 def on_connect(client, userdata, flags, rc):
     logger.info("Connected to broker with result code: " + str(rc))
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
-    subscription_setup(client, device_name)
+    subscription_setup(client)
 
 def on_message(client, userdata, msg):
     #logger.debug("Incoming message: topic = " + str(msg.topic) + " message = " + str(msg.payload))
@@ -133,7 +158,7 @@ def on_message(client, userdata, msg):
         update(client, userdata, msg, device_name)
         #logger.debug("State after update function" + json.dumps(curr_state))
         delta(client, device_name)                                                              #NOTE does delta need to be called here or only after desired message received
-        parse_tags(client, device_name)
+        parse_tags(client)
 
         #potential publish to device 
 
@@ -143,7 +168,39 @@ def on_message(client, userdata, msg):
 
         resolve_publishes(client)
 
-        print(curr_state)
+        global trial_counter
+        global num_tags
+        global num_trials
+        global num_trials_modifier
+        global unnamed_base_str
+        global curr_state
+
+        print("length of value list")
+        print(len(curr_state['state']['reported']['value']) - 1)
+
+        if trial_counter == 0:          #in the first loop through, populate the list with initial timer values
+            timing.append(TIMER*num_trials_modifier)
+        elif trial_counter < num_trials:
+            timer_index = len(curr_state['state']['reported']['value']) - 1             #hardcoded take the length of the 'value' key and subtract one to find the associated timing index
+            timing[timer_index] = timing[timer_index] + (TIMER*num_trials_modifier)     #add the amount of time scaled by the number of trials to the list index for that number of tags
+        elif trial_counter == num_trials:
+            #this means the loop of incrimenting number of tags should stop
+            for x in range(len(timing)):
+                print(str(x) + " - " + str(round(timing[x],4)))
+            raise KeyboardInterrupt
+    
+        if (len(curr_state['state']['reported']['value']) - 1) == num_tags:
+            print("THIS IS THE BIG KAHUNA")
+            trial_counter = trial_counter + 1
+            for k,v in curr_state['state']['reported'].items():
+                curr_state['state']['reported'][k] = [v[0]]
+            curr_state['state']['desired'] = {}
+            curr_state['state']['delta'] = {}
+            client.publish(unnamed_base_str + "update/delta", json.dumps(curr_state['state']['reported']))
+
+
+
+        #print(curr_state)
         logger.info("State after /update message processed: " + json.dumps(curr_state))
 
     if msg.topic.find("connected") != -1:       #topic contains connected
@@ -174,33 +231,39 @@ def update(client, userdata, msg, name):
                 curr_state['state']['desired'][k] = v        #set the desired state of the shadow equal to the received message
 
         if 'reported' in decoded_str['state']: #load json here, update current state of device, log data, publish to accepted topic so that device knows data got through
+            #print(decoded_str)
             for k, v in decoded_str['state']['reported'].items():         #this block updates the shadow with the new reported state
                 curr_state['state']['reported'][k] = v
 
-            behaviors(shadow, client)
+            behaviors()
             
 
 def delta(client, name):
     #This func should compare desired and reported sub keys and add any differences into the delta key
     #then this should check if the device is connected and if so the keys in delta should be published to the device via the '/update/delta' topic
     #the device will change state to match and then publish a reported update to shadow
+
+    #print(curr_state)
+
     for k, v in curr_state['state']['desired'].copy().items():            #iterate through desired keys
         if k in curr_state['state']['reported']:
-            if curr_state['state']['reported'][k][0] != v:                #if key is in reported and desired value doesnt match reported value
+            if curr_state['state']['reported'][k] != v:                #if key is in reported and desired value doesnt match reported value
                 curr_state['state']['delta'][k] = v
         else:
             curr_state['state']['delta'][k] = v
             continue
-        if curr_state['state']['delta'][k][0] == curr_state['state']['reported'][k][0]:
+        if curr_state['state']['delta'][k] == curr_state['state']['reported'][k]:
             del curr_state['state']['delta'][k]
-        if curr_state['state']['reported'][k][0] == curr_state['state']['desired'][k][0]:
+        if curr_state['state']['reported'][k] == curr_state['state']['desired'][k]:
             del curr_state['state']['desired'][k]
 
     #once the curr state has been finalized, call parse_tags() here
     if not shadow:
-        parse_tags(client, name)
+        parse_tags(client)
 
     global connected
+    global unnamed_base_str
+    global publish_dict
     
     if connected == True and len(curr_state['state']['delta']) != 0:
         str = json.dumps(curr_state['state']['delta'])
@@ -208,7 +271,7 @@ def delta(client, name):
         topic_str = unnamed_base_str + "update/delta"
         publish_dict[topic_str] = str
     
-def parse_tags(client, name):
+def parse_tags(client):
     """
     tag_list = []
     
@@ -222,9 +285,9 @@ def parse_tags(client, name):
     tag_list = [x for key, value in curr_state['state']['reported'].items() if (len(value) > 1) for x in value if not str(x).isnumeric()] #I think this will have duplicates
     tag_list = set(tag_list) #remove duplicates
 
-    print("printing list comprehension result")
-    print(tag_list)
-    print()
+    #print("printing list comprehension result")
+    #print(tag_list)
+    #print()
 
     for tag in tag_list:
         sub_dict = json_generator()
@@ -234,8 +297,8 @@ def parse_tags(client, name):
                     sub_dict['state']['reported'][k] = values[0]
         #client.publish(unnamed_base_str + "name/" + x + "/update", json.dumps(sub_dict))
         topic_str = unnamed_base_str + "name/" + tag + "/update"
-        print("Printing sub dict for " + tag + ": ")
-        print(sub_dict)
+        #print("Printing sub dict for " + tag + ": ")
+        #print(sub_dict)
         publish_dict[topic_str] = json.dumps(sub_dict)
 
 def mytimecalculations(StartTime=None, EndTime=None):
@@ -261,11 +324,38 @@ def mytimecalculations(StartTime=None, EndTime=None):
     return elapsed_ms
 
 def main():
+    global logger
+    global shadow
+    global named_base_str
+    global unnamed_base_str
+    global curr_state
+    global device_name
+    global num_tags
+    global num_trials
+    global num_trials_modifier
+
     args = parse_args()
 
-    print(args.num_tags)
-    print(args.num_trials)
-    print(args.output_file)
+    if args.num_tags:
+        num_tags = args.num_tags
+    if args.num_trials:
+        num_trials = args.num_trials
+        num_trials_modifier = 1.0/(float(args.num_trials))
+    if args.output_file:
+        timing_file = args.output_file
+    else:
+        timing_file = "timing_output_" + str(datetime.datetime.now()) + ".txt"
+    device_name = args.device_name          #this has a default val, so this assignment doesn't need a check
+    named_base_str = "devices/" + device_name + "/shadow/"
+    unnamed_base_str = named_base_str
+    log_file_name = device_name
+    if args.shadow:
+        named_base_str = named_base_str + "name/" + args.shadow + "/"
+        shadow = True
+        log_file_name = log_file_name + "_" + args.shadow
+    log_file_name = log_file_name + ".log"
+
+    logger = setup_logger('', log_file_name, level=logging.DEBUG)
 
     client = mqtt.Client()
     client.on_message = on_message
