@@ -10,6 +10,7 @@ import json
 import os
 import logging
 import datetime
+import argparse
 
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
@@ -75,6 +76,37 @@ def json_generator():
 
 def behaviors(cur_state, client):           #Define client specific behaviors in this function.
     pass
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "-n",
+        "--num_tags",
+        type=int,
+        required=False,
+        help="The number of tags given to each key-value pair",
+    )
+    parser.add_argument(
+        "-t",
+        "--num_trials",
+        type=int,
+        required=False,
+        help="The number of trials run for each incrimenting number of tags",
+    )
+    parser.add_argument(
+        "-o",
+        "--output_file",
+        type=str,
+        required=False,
+        help="File to write timing results to",
+    )
+
+    args = parser.parse_args()
+    print(args)
+
+    return args
+
 
 def subscription_setup(client, name):      #TODO add the rest of aws api subscription setup
     client.subscribe(named_base_str + "update")
@@ -228,53 +260,63 @@ def mytimecalculations(StartTime=None, EndTime=None):
                                               1000.0) + (delta.microseconds / 1000.0)
     return elapsed_ms
 
-client = mqtt.Client()
-client.on_message = on_message
-client.on_connect = on_connect
-client.username_pw_set(username="counter_shadow", password="counter_password")
+def main():
+    args = parse_args()
 
-#load in last recorded state from json, if json not found then make shadow file
-if not shadow:
-    if os.path.exists(device_name + "_shadow.json"):
-        file_in = open(device_name + "_shadow.json")
-        curr_state = json.load(file_in)
-        file_in.close()
-    else:
-        print("shadow not found, making new one")
-        logger.info("shadow json not found, creating file " + device_name + "_shadow.json")
-        curr_state = json_generator()
-        file_out = open(device_name + "_shadow.json", "w")
-        json.dump(curr_state, file_out)
-        file_out.close
-if shadow:
-    shadow_file_name = device_name + "_" + sys.argv[2] + "_shadow.json"
-    if os.path.exists(shadow_file_name):
-        file_in = open(shadow_file_name)
-        curr_state = json.load(file_in)
-        file_in.close()
-    else:
-        print("shadow not found, making new one")
-        logger.info("shadow json not found, creating file " + shadow_file_name)
-        curr_state = json_generator()
-        file_out = open(shadow_file_name, "w")
-        json.dump(curr_state, file_out)
-        file_out.close
+    print(args.num_tags)
+    print(args.num_trials)
+    print(args.output_file)
 
-client.connect("localhost", 1883, 60)
+    client = mqtt.Client()
+    client.on_message = on_message
+    client.on_connect = on_connect
+    client.username_pw_set(username="counter_shadow", password="counter_password")
 
-try:
-    client.loop_forever()
-except KeyboardInterrupt:
-    logger.warning("Exception type - " + str(sys.exc_info()[0]))
-    logger.info("Writing current state to json shadow: " + json.dumps(curr_state))     #right before client shutdown, write current state to json
-    output_stream = open(device_name + "_shadow.json", "w")
-    json.dump(curr_state, output_stream)
-    output_stream.close()
-"""
-except Exception:
-    logger.critical("Unexpected exception of type - " + str(sys.exc_info()[0]))
-    logger.info("Writing current state to json shadow: " + json.dumps(curr_state))     #right before client shutdown, write current state to json
-    output_stream = open(device_name + "_shadow.json", "w")
-    json.dump(curr_state, output_stream)
-    output_stream.close()
-"""
+    #load in last recorded state from json, if json not found then make shadow file
+    if not shadow:
+        if os.path.exists(device_name + "_shadow.json"):
+            file_in = open(device_name + "_shadow.json")
+            curr_state = json.load(file_in)
+            file_in.close()
+        else:
+            print("shadow not found, making new one")
+            logger.info("shadow json not found, creating file " + device_name + "_shadow.json")
+            curr_state = json_generator()
+            file_out = open(device_name + "_shadow.json", "w")
+            json.dump(curr_state, file_out)
+            file_out.close
+    if shadow:
+        shadow_file_name = device_name + "_" + sys.argv[2] + "_shadow.json"
+        if os.path.exists(shadow_file_name):
+            file_in = open(shadow_file_name)
+            curr_state = json.load(file_in)
+            file_in.close()
+        else:
+            print("shadow not found, making new one")
+            logger.info("shadow json not found, creating file " + shadow_file_name)
+            curr_state = json_generator()
+            file_out = open(shadow_file_name, "w")
+            json.dump(curr_state, file_out)
+            file_out.close
+
+    client.connect("localhost", 1883, 60)
+
+    try:
+        client.loop_forever()
+    except KeyboardInterrupt:
+        logger.warning("Exception type - " + str(sys.exc_info()[0]))
+        logger.info("Writing current state to json shadow: " + json.dumps(curr_state))     #right before client shutdown, write current state to json
+        output_stream = open(device_name + "_shadow.json", "w")
+        json.dump(curr_state, output_stream)
+        output_stream.close()
+    """
+    except Exception:
+        logger.critical("Unexpected exception of type - " + str(sys.exc_info()[0]))
+        logger.info("Writing current state to json shadow: " + json.dumps(curr_state))     #right before client shutdown, write current state to json
+        output_stream = open(device_name + "_shadow.json", "w")
+        json.dump(curr_state, output_stream)
+        output_stream.close()
+    """
+
+if __name__ == "__main__":
+    main()
