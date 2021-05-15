@@ -72,16 +72,51 @@ def json_generator():
     return empty_dict
 
 def behaviors():           #Define client specific behaviors in this function.
+    global num_tags
     #print("enter behaviours")
     #print(curr_state)
-    global num_tags
+
+    first_key_str = list(curr_state['state']['reported'].items())[0][0]
+    first_key_val = list(curr_state['state']['reported'].items())[0][1]
+
+    if len(first_key_val) <=  num_tags:                                     #change the value of the first key and add another key
+        tag_str = "TAG_" + str(len(first_key_val))
+        curr_state['state']['desired'][first_key_str] = first_key_val.copy()              
+        curr_state['state']['desired'][first_key_str].append(tag_str)
+
+        key_str = "value_"
+        key_str = key_str + str(len(curr_state['state']['reported']))
+        curr_state['state']['desired'][key_str] = [-1]
+
+    first_key_val = list(curr_state['state']['reported'].items())[0][1]     #update this var now that the value of the first key has changed
+
+    for key, value in curr_state['state']['desired'].items():              #update all other keys present in desired to match the first key value
+        if key != first_key_str:
+            curr_state['state']['desired'][key] = first_key_val     
+    
+    """
     for key, value in curr_state['state']['reported'].items():
         if len(value) <=  num_tags:
             tag_str = "TAG_" + str(len(value))
-            curr_state['state']['desired'][key] = value.copy()
+            curr_state['state']['desired'][key] = value.copy()              
             curr_state['state']['desired'][key].append(tag_str)
-    #print("leaving behaviours")
-    #print(curr_state)
+        #print("key = " + str(key))
+        #print("value = " + str(value))
+    if len(curr_state['state']['reported']) < num_tags:
+        tmp_str = "value_"
+        tmp_str = tmp_str + str(len(curr_state['state']['reported']))
+        curr_state['state']['desired'][tmp_str] = list(curr_state['state']['reported'].items())[0][1]    #copy the contents of the base value key into the newest key
+        #print("this should be the value of the first key: " + str(list(curr_state['state']['reported'].items())[0][1]))
+        
+    print("leaving behaviours")
+    print(curr_state)
+    """
+
+def stop_collection():
+    global timing
+    for x in range(len(timing)):
+        print(str(x) + " - " + str(round(timing[x],4)))
+    raise KeyboardInterrupt
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -125,7 +160,7 @@ def parse_args():
     
 
     args = parser.parse_args()
-    print(args)
+    #print(args)
 
     return args
 
@@ -135,7 +170,6 @@ def subscription_setup(client):      #TODO add the rest of aws api subscription 
     global device_name
     client.subscribe(named_base_str + "update")
     client.subscribe(named_base_str + "get")
-    print("device bname = " + device_name)
     client.subscribe("devices/" + device_name + "/connected")
     print("successfully setup subscriptions")
     
@@ -175,23 +209,25 @@ def on_message(client, userdata, msg):
         global unnamed_base_str
         global curr_state
 
-        print("length of value list")
-        print(len(curr_state['state']['reported']['value']) - 1)
+        #print("length of value list")
+        #print(len(curr_state['state']['reported']['value']) - 1)
 
         if trial_counter == 0:          #in the first loop through, populate the list with initial timer values
             timing.append(TIMER*num_trials_modifier)
+            print(len(list(curr_state['state']['reported'].items())[0][1]) - 1)
+            print(timing[len(list(curr_state['state']['reported'].items())[0][1]) - 1])
         elif trial_counter < num_trials:
-            timer_index = len(curr_state['state']['reported']['value']) - 1             #hardcoded take the length of the 'value' key and subtract one to find the associated timing index
+            timer_index = len(list(curr_state['state']['reported'].items())[0][1]) - 1             #hardcoded take the length of the 'value' key and subtract one to find the associated timing index
+            print(timer_index)
+            print(TIMER)
             timing[timer_index] = timing[timer_index] + (TIMER*num_trials_modifier)     #add the amount of time scaled by the number of trials to the list index for that number of tags
         elif trial_counter == num_trials:
             #this means the loop of incrimenting number of tags should stop
-            for x in range(len(timing)):
-                print(str(x) + " - " + str(round(timing[x],4)))
-            raise KeyboardInterrupt
+            stop_collection()
     
-        if (len(curr_state['state']['reported']['value']) - 1) == num_tags:
-            print("THIS IS THE BIG KAHUNA")
+        if (len(curr_state['state']['reported']['value']) - 1) == num_tags:             #this could check len of list for first key or it could check number of key-value pairs present
             trial_counter = trial_counter + 1
+            print("trial " + str(trial_counter) + " complete")
             for k,v in curr_state['state']['reported'].items():
                 curr_state['state']['reported'][k] = [v[0]]
             curr_state['state']['desired'] = {}
@@ -243,8 +279,6 @@ def delta(client, name):
     #then this should check if the device is connected and if so the keys in delta should be published to the device via the '/update/delta' topic
     #the device will change state to match and then publish a reported update to shadow
 
-    #print(curr_state)
-
     for k, v in curr_state['state']['desired'].copy().items():            #iterate through desired keys
         if k in curr_state['state']['reported']:
             if curr_state['state']['reported'][k] != v:                #if key is in reported and desired value doesnt match reported value
@@ -252,7 +286,7 @@ def delta(client, name):
         else:
             curr_state['state']['delta'][k] = v
             continue
-        if curr_state['state']['delta'][k] == curr_state['state']['reported'][k]:
+        if (k in curr_state['state']['delta']) and (curr_state['state']['delta'][k] == curr_state['state']['reported'][k]):
             del curr_state['state']['delta'][k]
         if curr_state['state']['reported'][k] == curr_state['state']['desired'][k]:
             del curr_state['state']['desired'][k]

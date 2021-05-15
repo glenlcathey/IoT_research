@@ -55,8 +55,8 @@ def parse_delta(x):
             temp_dict = [v]
             data['state']['reported'][k] = temp_dict
     
-    state = json.dumps(data)
-    client.publish(BASE_STR + "update", state, qos=1)                               # once the device state is updated to match the desired state, report updated the device state
+    #state = json.dumps(data)
+    #client.publish(BASE_STR + "update", state, qos=1)                               # once the device state is updated to match the desired state, report updated the device state
 
 
 def sub_to_named_shadow(shadow_name):
@@ -79,4 +79,4 @@ while True:                                                                     
     print(data)
     state = json.dumps(data)
     client.publish(BASE_STR + "update", state, qos=1)                                      #publish curr state to unnamed shadow
-    time.sleep(5)
+    time.sleep(.1)
