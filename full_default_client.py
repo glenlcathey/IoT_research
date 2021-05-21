@@ -1,7 +1,8 @@
 #HOW TO INTERACT WITH THIS FILE:
-#call with command line arguements if you want to specify device name, or shadow name
-#the first arg should be device name (if not present defaults to 'device')
-#the second arg should be shadow name (if not present defaults base unnamed shadow)
+#python3 full_default_client.py -n 100 -t 20
+#-n indicates number of tags
+#-t number of trials
+#if it throws a json error on run, delete the saved json
 
 
 import subprocess
@@ -114,8 +115,9 @@ def behaviors():           #Define client specific behaviors in this function.
 
 def stop_collection():
     global timing
-    for x in range(len(timing)):
-        print(str(x) + " - " + str(round(timing[x],4)))
+    with open(timing_file, "a") as file:
+        for x in range(len(timing)):
+            file.write(str(x) + "," + str(round(timing[x],4)) + "\n")
     raise KeyboardInterrupt
 
 def parse_args():
@@ -214,12 +216,12 @@ def on_message(client, userdata, msg):
 
         if trial_counter == 0:          #in the first loop through, populate the list with initial timer values
             timing.append(TIMER*num_trials_modifier)
-            print(len(list(curr_state['state']['reported'].items())[0][1]) - 1)
-            print(timing[len(list(curr_state['state']['reported'].items())[0][1]) - 1])
+            #print(len(list(curr_state['state']['reported'].items())[0][1]) - 1)
+            #print(timing[len(list(curr_state['state']['reported'].items())[0][1]) - 1])
         elif trial_counter < num_trials:
             timer_index = len(list(curr_state['state']['reported'].items())[0][1]) - 1             #hardcoded take the length of the 'value' key and subtract one to find the associated timing index
-            print(timer_index)
-            print(TIMER)
+            #print(timer_index)
+            #print(TIMER)
             timing[timer_index] = timing[timer_index] + (TIMER*num_trials_modifier)     #add the amount of time scaled by the number of trials to the list index for that number of tags
         elif trial_counter == num_trials:
             #this means the loop of incrimenting number of tags should stop
@@ -367,6 +369,7 @@ def main():
     global num_tags
     global num_trials
     global num_trials_modifier
+    global timing_file
 
     args = parse_args()
 

@@ -47,7 +47,7 @@ def on_message(client, userdata, msg):
 
 
 def parse_delta(x):
-    print(x)
+    #print(x)
     for k, v in x.items():
         if k in data['state']['reported']:
             data['state']['reported'][k] = v                                            #NOTE only the desired value is modifiable as the tag behavior is defined at the device level
@@ -76,7 +76,7 @@ client.loop_start()
 while True:                                                                         #NOTE unique device behavior must be defined in this loop in order to continually execute
     tag_behaviors()
 
-    print(data)
+    #print(data)
     state = json.dumps(data)
     client.publish(BASE_STR + "update", state, qos=1)                                      #publish curr state to unnamed shadow
     time.sleep(.1)
