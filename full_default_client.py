@@ -201,9 +201,6 @@ def on_message(client, userdata, msg):
         ) == client_userdata["num_tags"]:
             client_userdata["trial_counter"] += 1
             print(f"Trial {client_userdata['trial_counter']} complete")
-            # time.sleep(5)
-            #for k, v in client_userdata["curr_state"]["state"]["reported"].items():
-            #    client_userdata["curr_state"]["state"]["reported"][k] = [v[0]]
             client_userdata["curr_state"]["state"]["reported"] = {}
             client_userdata["curr_state"]["state"]["reported"]['value'] = [0]
             client_userdata["curr_state"]["state"]["desired"] = {}
@@ -320,9 +317,6 @@ def parse_tags(client):
     for tag in tag_list:
         sub_dict = json_generator()
         for k, values in client_userdata["curr_state"]["state"]["reported"].items():
-            #temp = [value for value in values if value == tag]
-            #if len(temp) > 0:
-            #    sub_dict["state"]["reported"][k] = values[0]
             for value in values:
                 if value == tag:
                     sub_dict["state"]["reported"][k] = values[0]
