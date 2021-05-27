@@ -4,121 +4,23 @@
 #-t number of trials
 #if it throws a json error on run, delete the saved json
 
-
-import subprocess
-import sys
 import json
 import os
 import logging
 import datetime
+import time
 import argparse
-import math
-
-def install(package):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-
-install("paho-mqtt") #ensure mqtt library installed
+import parser
+import collections
 import paho.mqtt.client as mqtt
 
-#timing variables defined here
-timing = []                 #list holding the average timing for each number of tags
-num_trials = 0              #int holding how many trials to do for each number of tags
-trial_counter = 0           #int counter var holding the current number of trials done for the current number of tags (gets reset with each tag addition)
-num_trials_modifier = 0.0   #float to use as modifier for each time i.e. if num trials is 5 this will be 0.2. mult each result by this value and add it to the related timing array index
-num_tags = 0                #the number of tags to incriment to 
-timing_file = ""            #the file to write timing results to
-done = False
-
-#core frequently interacted with variables setup here
+client_userdata = {}
+# list holding the average timing for each number of tags
+timing = collections.defaultdict(list)
 curr_state = {}
 publish_dict = {}
-shadow = False
 connected = False
-device_name = ""   #defaults to 'device'
-named_base_str = ""
-unnamed_base_str = ""
-log_file_name = ""
-    
-def resolve_publishes(client):
-    global publish_dict
-    for k, v in publish_dict.items():
-        client.publish(k, v)
-    publish_dict = {}
 
-def setup_logger(name, log_file, level=logging.INFO):
-    """Function setup as many loggers as you want"""
-    handler = logging.FileHandler(log_file)
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    logger.addHandler(handler)
-    return logger
-
-def json_generator():
-    empty_dict = {
-        'state': {
-            'desired': {
-
-            },
-            'reported': {
-
-            },
-            'delta': {
-                
-            }
-        }
-    }
-    
-    return empty_dict
-
-def behaviors():           #Define client specific behaviors in this function.
-    global num_tags
-    #print("enter behaviours")
-    #print(curr_state)
-
-    first_key_str = list(curr_state['state']['reported'].items())[0][0]
-    first_key_val = list(curr_state['state']['reported'].items())[0][1]
-
-    if len(first_key_val) <=  num_tags:                                     #change the value of the first key and add another key
-        tag_str = "TAG_" + str(len(first_key_val))
-        curr_state['state']['desired'][first_key_str] = first_key_val.copy()              
-        curr_state['state']['desired'][first_key_str].append(tag_str)
-
-        key_str = "value_"
-        key_str = key_str + str(len(curr_state['state']['reported']))
-        curr_state['state']['desired'][key_str] = [-1]
-
-    first_key_val = list(curr_state['state']['reported'].items())[0][1]     #update this var now that the value of the first key has changed
-
-    for key, value in curr_state['state']['desired'].items():              #update all other keys present in desired to match the first key value
-        if key != first_key_str:
-            curr_state['state']['desired'][key] = first_key_val     
-    
-    """
-    for key, value in curr_state['state']['reported'].items():
-        if len(value) <=  num_tags:
-            tag_str = "TAG_" + str(len(value))
-            curr_state['state']['desired'][key] = value.copy()              
-            curr_state['state']['desired'][key].append(tag_str)
-        #print("key = " + str(key))
-        #print("value = " + str(value))
-    if len(curr_state['state']['reported']) < num_tags:
-        tmp_str = "value_"
-        tmp_str = tmp_str + str(len(curr_state['state']['reported']))
-        curr_state['state']['desired'][tmp_str] = list(curr_state['state']['reported'].items())[0][1]    #copy the contents of the base value key into the newest key
-        #print("this should be the value of the first key: " + str(list(curr_state['state']['reported'].items())[0][1]))
-        
-    print("leaving behaviours")
-    print(curr_state)
-    """
-
-def stop_collection():
-    global timing
-    with open(timing_file, "a") as file:
-        for x in range(len(timing)):
-            file.write(str(x) + "," + str(round(timing[x],4)) + "\n")
-    raise KeyboardInterrupt
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -128,21 +30,31 @@ def parse_args():
         "--device_name",
         type=str,
         required=False,
-        default='device',
+        default="device",
         help="Name of the device. Used for MQTT topics. Defaults to 'device'",
     )
     parser.add_argument(
         "-s",
         "--shadow",
-        type=str,
+        dest="shadow",
         required=False,
-        help="If present, indicates this client is a tag shadow.",
+        default=False,
+        action="store_true",
+        help="If present `--shadow`, indicates this client is a tag shadow. Requires the shadow_name tag. ",
+    )
+    parser.add_argument(
+        "-sn",
+        "--shadow_name",
+        dest="shadow_name",
+        required=False,
+        help="Name of the indicated shadow.",
     )
     parser.add_argument(
         "-n",
         "--num_tags",
         type=int,
         required=False,
+        default=50,
         help="The number of tags given to each key-value pair",
     )
     parser.add_argument(
@@ -150,300 +62,373 @@ def parse_args():
         "--num_trials",
         type=int,
         required=False,
-        help="The number of trials run for each incrimenting number of tags",
+        default=10,
+        help="The number of trials run for each incrementing number of tags",
     )
     parser.add_argument(
         "-o",
         "--output_file",
         type=str,
         required=False,
+        default=f"timing_output_{datetime.datetime.now()}.txt",
         help="File to write timing results to",
     )
-    
-
     args = parser.parse_args()
-    #print(args)
-
     return args
 
 
-def subscription_setup(client):      #TODO add the rest of aws api subscription setup
-    global named_base_str
-    global device_name
-    client.subscribe(named_base_str + "update")
-    client.subscribe(named_base_str + "get")
-    client.subscribe("devices/" + device_name + "/connected")
-    print("successfully setup subscriptions")
-    
+def resolve_publishes(client, publish_dict):
+    for k, v in publish_dict.items():
+        # print(f"KEY: {k}\nVALUE: {v}\n\n")
+        client.publish(k, v)
+    publish_dict = {}
+    return publish_dict
+
+
+def setup_logger(name, log_file, level=logging.INFO):
+    """Function setup as many loggers as you want"""
+    handler = logging.FileHandler(log_file)
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    handler.setFormatter(formatter)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+    return logger
+
+
+def json_generator():
+    empty_dict = {"state": {"desired": {}, "reported": {}, "delta": {}}}
+    return empty_dict
+
+
+def stop_collection(file_name, timing):
+    with open(file_name, "w") as f:
+        json.dump(timing, f)
+    print(f"FINAL TIMING AT STOP_COLLECTION: {timing}")
+    raise KeyboardInterrupt
+
+
+def behaviors(client):  # Define client specific behaviors in this function.
+    # print(f"NUM_TAGS: {client_userdata['num_tags']}")
+    # print("enter behaviours")
+    # print(f"BEHAVIORS CLIENT CURR_STATE: {client_userdata['curr_state']}")
+
+    first_key_str = list(client_userdata["curr_state"]["state"]["reported"].items())[0][
+        0
+    ]
+    first_key_val = list(client_userdata["curr_state"]["state"]["reported"].items())[0][
+        1
+    ]
+
+    # change the value of the first key and add another key
+    if (len(first_key_val) <= client_userdata["num_tags"]):
+        tag_str = f"TAG_{len(first_key_val)}"
+        client_userdata["curr_state"]["state"]["desired"][first_key_str] = first_key_val.copy()
+        client_userdata["curr_state"]["state"]["desired"][first_key_str].append(tag_str)
+
+        # print(f"LENGTH_ IS FROM: {client_userdata['curr_state']['state']['reported']}")
+        key_str = f"value_{len(client_userdata['curr_state']['state']['reported'])}"
+        client_userdata["curr_state"]["state"]["desired"][key_str] = [-1]
+
+    # update this var now that the value of the first key has changed
+    first_key_val = list(client_userdata["curr_state"]["state"]["reported"].items())[0][1]
+
+    # update all other keys present in desired to match the first key value
+    for key, value in client_userdata["curr_state"]["state"]["desired"].items():
+        if key != first_key_str:
+            client_userdata["curr_state"]["state"]["desired"][key] = first_key_val
+
+
+def subscription_setup(client):  # TODO add the rest of aws api subscription setup
+    client.subscribe(client_userdata["named_base_str"] + "update")
+    client.subscribe(client_userdata["named_base_str"] + "get")
+    client.subscribe(f"devices/{client_userdata['device_name']}/connected")
+    print(
+        f"successfully setup subscriptions to: devices/{client_userdata['device_name']}/connected"
+    )
+
+
 def on_connect(client, userdata, flags, rc):
-    logger.info("Connected to broker with result code: " + str(rc))
+    logger.info(f"Connected to broker with result code: {rc}")
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
     subscription_setup(client)
 
-def on_message(client, userdata, msg):
-    #logger.debug("Incoming message: topic = " + str(msg.topic) + " message = " + str(msg.payload))
 
-    if msg.topic.find("update") != -1:          #topic contains update
+def on_message(client, userdata, msg):
+    # print(f"Incoming message:\n\ttopic = {msg.topic}\n\tmessage = {msg.payload}")
+    if msg.topic.find("update") != -1:  # topic contains update
         msg.payload = msg.payload.decode("utf-8")
 
-        #make list
+        StartClock = datetime.datetime.now()  # Starting clock HERE
 
-        StartClock = datetime.datetime.now()                                                    # Starting clock HERE
-
-        update(client, userdata, msg, device_name)
-        #logger.debug("State after update function" + json.dumps(curr_state))
-        delta(client, device_name)                                                              #NOTE does delta need to be called here or only after desired message received
+        update(client, userdata, msg, client_userdata["device_name"])
+        # logger.debug("State after update function" + json.dumps(curr_state))
+        # NOTE does delta need to be called here or only after desired message received
+        delta(client, client_userdata["device_name"])
         parse_tags(client)
 
-        #potential publish to device 
+        # potential publish to device
 
         EndClock = datetime.datetime.now()
         TIMER = mytimecalculations(StartClock, EndClock)
         logger.info(TIMER)
 
-        resolve_publishes(client)
+        resolve_publishes(client, publish_dict)
 
-        global trial_counter
-        global num_tags
-        global num_trials
-        global num_trials_modifier
-        global unnamed_base_str
-        global curr_state
+        if client_userdata["trial_counter"] < client_userdata["num_trials"]:
+            # hardcoded take the length of the 'value' key and subtract one to find the associated timing index
+            timer_index = (
+                len(
+                    list(client_userdata["curr_state"]["state"]["reported"].items())[0][
+                        1
+                    ]
+                )
+                - 1
+            )
+            print(
+                f"\tTIME: {TIMER}ms\tfor TIMING INDEX: {timer_index} of {client_userdata['num_tags']} and "
+                f"TRIAL: {client_userdata['trial_counter']} or {client_userdata['num_trials']}"
+            )
+            # add the amount of time scaled by the number of trials to the list index for that number of tags
+            timing[timer_index].append(TIMER)
+        elif client_userdata["trial_counter"] == client_userdata["num_trials"]:
+            stop_collection(f"{userdata['timing_file']}", timing)
 
-        #print("length of value list")
-        #print(len(curr_state['state']['reported']['value']) - 1)
+        # this could check len of list for first key or it could check number of key-value pairs present
+        if (
+            len(client_userdata["curr_state"]["state"]["reported"]["value"]) - 1
+        ) == client_userdata["num_tags"]:
+            client_userdata["trial_counter"] += 1
+            print(f"Trial {client_userdata['trial_counter']} complete")
+            # time.sleep(5)
+            #for k, v in client_userdata["curr_state"]["state"]["reported"].items():
+            #    client_userdata["curr_state"]["state"]["reported"][k] = [v[0]]
+            client_userdata["curr_state"]["state"]["reported"] = {}
+            client_userdata["curr_state"]["state"]["reported"]['value'] = [0]
+            client_userdata["curr_state"]["state"]["desired"] = {}
+            client_userdata["curr_state"]["state"]["delta"] = {}
+            client.publish(
+                client_userdata["unnamed_base_str"] + "update/delta",
+                json.dumps(client_userdata["curr_state"]["state"]["reported"]),
+            )
 
-        if trial_counter == 0:          #in the first loop through, populate the list with initial timer values
-            timing.append(TIMER*num_trials_modifier)
-            #print(len(list(curr_state['state']['reported'].items())[0][1]) - 1)
-            #print(timing[len(list(curr_state['state']['reported'].items())[0][1]) - 1])
-        elif trial_counter < num_trials:
-            timer_index = len(list(curr_state['state']['reported'].items())[0][1]) - 1             #hardcoded take the length of the 'value' key and subtract one to find the associated timing index
-            #print(timer_index)
-            #print(TIMER)
-            timing[timer_index] = timing[timer_index] + (TIMER*num_trials_modifier)     #add the amount of time scaled by the number of trials to the list index for that number of tags
-        elif trial_counter == num_trials:
-            #this means the loop of incrimenting number of tags should stop
-            stop_collection()
-    
-        if (len(curr_state['state']['reported']['value']) - 1) == num_tags:             #this could check len of list for first key or it could check number of key-value pairs present
-            trial_counter = trial_counter + 1
-            print("trial " + str(trial_counter) + " complete")
-            for k,v in curr_state['state']['reported'].items():
-                curr_state['state']['reported'][k] = [v[0]]
-            curr_state['state']['desired'] = {}
-            curr_state['state']['delta'] = {}
-            client.publish(unnamed_base_str + "update/delta", json.dumps(curr_state['state']['reported']))
+        # print(client_userdata['curr_state'])
+        # logger.info(f"State after /update message processed: {json.dumps(client_userdata['curr_state'])}")
 
-
-
-        #print(curr_state)
-        logger.info("State after /update message processed: " + json.dumps(curr_state))
-
-    if msg.topic.find("connected") != -1:       #topic contains connected
+    if msg.topic.find("connected") != -1:  # topic contains connected
         global connected
-        if msg.payload.decode("utf-8") == '1':
-            print('device connected')
+        if msg.payload.decode("utf-8") == "1":
+            print(f"<{client_userdata['device_name']}> connected")
             connected = True
-            if shadow:
-                emp = json_generator() #why does this need to be a string??
-                emp['shadow'] = sys.argv[2]
-                client.publish(unnamed_base_str + "update/delta", json.dumps(emp))
+            print(f"IS THERE A SHADOW?: {client_userdata['shadow']}")
+            if client_userdata["shadow"]:
+                emp = json_generator()  # why does this need to be a string??
+                emp["shadow"] = client_userdata["shadow_name"]
+                client.publish(f"{client_userdata['unnamed_base_str']}update/delta",
+                    json.dumps(emp))
         if msg.payload.decode("utf-8") == "0":
             connected = False
 
-    
+
 def update(client, userdata, msg, name):
-    if msg.topic == named_base_str + "update":  #make sure this is an update for the correct device  #I believe this SHOULD be an extraneous check but dont want to remove it
-        
-        decoded_str = json.loads(msg.payload)        #load the payload into a json dict
+    # make sure this is an update for the correct device  #I believe this SHOULD be an extraneous check but dont want to remove it
+    if (msg.topic == client_userdata["named_base_str"] + "update"):
+        decoded_str = json.loads(msg.payload)  # load the payload into a json dict
 
-        if 'desired' in decoded_str['state']:          #check if desired is a field in the json dict
-            #This should update desired will all passed keys from update message
-            #any differences between desired and reported state will be handled in delta function
+        if ("desired" in decoded_str["state"]):
+            # This should update desired will all passed keys from update message
+            # any differences between desired and reported state will be handled in delta function
             print("entered desired")
-            for k, v in decoded_str['state']['desired'].items():
-                if k in curr_state['state']['reported'] and curr_state['state']['reported'][k] == decoded_str['state']['desired'][k]:
+            for k, v in decoded_str["state"]["desired"].items():
+                if (
+                    k in client_userdata["curr_state"]["state"]["reported"]
+                    and client_userdata["curr_state"]["state"]["reported"][k]
+                    == decoded_str["state"]["desired"][k]
+                ):
                     continue
-                curr_state['state']['desired'][k] = v        #set the desired state of the shadow equal to the received message
+                # set the desired state of the shadow equal to the received message
+                client_userdata["curr_state"]["state"]["desired"][k] = v
 
-        if 'reported' in decoded_str['state']: #load json here, update current state of device, log data, publish to accepted topic so that device knows data got through
-            #print(decoded_str)
-            for k, v in decoded_str['state']['reported'].items():         #this block updates the shadow with the new reported state
-                curr_state['state']['reported'][k] = v
+        # load json here, update current state of device, log data, publish to accepted topic so that device knows data got through
+        if "reported" in decoded_str["state"]:
+            # print(f"DECODED STR: {decoded_str['state']['reported']}")
+            # print(f"CURR STR: {client_userdata['curr_state']}")
 
-            behaviors()
-            
+            # this block updates the shadow with the new reported state
+            for k, v in decoded_str["state"]["reported"].items():
+                client_userdata["curr_state"]["state"]["reported"][k] = v
+
+            behaviors(client)
+
 
 def delta(client, name):
-    #This func should compare desired and reported sub keys and add any differences into the delta key
-    #then this should check if the device is connected and if so the keys in delta should be published to the device via the '/update/delta' topic
-    #the device will change state to match and then publish a reported update to shadow
+    # This func should compare desired and reported sub keys and add any differences into the delta key
+    # then this should check if the device is connected and if so the keys in delta should be published to the device via the '/update/delta' topic
+    # the device will change state to match and then publish a reported update to shadow
 
-    for k, v in curr_state['state']['desired'].copy().items():            #iterate through desired keys
-        if k in curr_state['state']['reported']:
-            if curr_state['state']['reported'][k] != v:                #if key is in reported and desired value doesnt match reported value
-                curr_state['state']['delta'][k] = v
+    for k, v in (
+        client_userdata["curr_state"]["state"]["desired"].copy().items()
+    ):  # iterate through desired keys
+        if k in client_userdata["curr_state"]["state"]["reported"]:
+            # if key is in reported and desired value doesnt match reported value
+            if client_userdata["curr_state"]["state"]["reported"][k] != v:
+                client_userdata["curr_state"]["state"]["delta"][k] = v
         else:
-            curr_state['state']['delta'][k] = v
+            client_userdata["curr_state"]["state"]["delta"][k] = v
             continue
-        if (k in curr_state['state']['delta']) and (curr_state['state']['delta'][k] == curr_state['state']['reported'][k]):
-            del curr_state['state']['delta'][k]
-        if curr_state['state']['reported'][k] == curr_state['state']['desired'][k]:
-            del curr_state['state']['desired'][k]
+        if (k in client_userdata["curr_state"]["state"]["delta"]) and (
+            client_userdata["curr_state"]["state"]["delta"][k]
+            == client_userdata["curr_state"]["state"]["reported"][k]
+        ):
+            del client_userdata["curr_state"]["state"]["delta"][k]
+        if (
+            client_userdata["curr_state"]["state"]["reported"][k]
+            == client_userdata["curr_state"]["state"]["desired"][k]
+        ):
+            del client_userdata["curr_state"]["state"]["desired"][k]
 
-    #once the curr state has been finalized, call parse_tags() here
-    if not shadow:
+    # once the curr state has been finalized, call parse_tags() here
+    if not client_userdata["shadow"]:
         parse_tags(client)
 
     global connected
-    global unnamed_base_str
     global publish_dict
-    
-    if connected == True and len(curr_state['state']['delta']) != 0:
-        str = json.dumps(curr_state['state']['delta'])
-        #client.publish(unnamed_base_str + "update/delta", str)       #publish keys in delta to device
-        topic_str = unnamed_base_str + "update/delta"
+
+    if (connected is True) and (
+        len(client_userdata["curr_state"]["state"]["delta"]) != 0
+    ):
+        str = json.dumps(client_userdata["curr_state"]["state"]["delta"])
+        # client.publish(unnamed_base_str + "update/delta", str)       # publish keys in delta to device
+        topic_str = client_userdata["unnamed_base_str"] + "update/delta"
         publish_dict[topic_str] = str
-    
+
+
 def parse_tags(client):
-    """
-    tag_list = []
-    
-    for k, v in curr_state['state']['reported'].items():   #DONT modify curr_state in this loop, just generate list of present tags
-        if len(v) > 1:  
-            for x in v:
-                if not str(x).isnumeric():
-                    tag_list.append(x)
-    """
+    tag_list = [
+        x
+        for key, value in client_userdata["curr_state"]["state"]["reported"].items()
+        if (len(value) > 1)
+        for x in value
+        if not str(x).isnumeric()
+    ]  # I think this will have duplicates
+    tag_list = set(tag_list)  # remove duplicates
 
-    tag_list = [x for key, value in curr_state['state']['reported'].items() if (len(value) > 1) for x in value if not str(x).isnumeric()] #I think this will have duplicates
-    tag_list = set(tag_list) #remove duplicates
-
-    #print("printing list comprehension result")
-    #print(tag_list)
-    #print()
+    # print("printing list comprehension result")
+    # print(tag_list)
 
     for tag in tag_list:
         sub_dict = json_generator()
-        for k, values in curr_state['state']['reported'].items():
+        for k, values in client_userdata["curr_state"]["state"]["reported"].items():
+            #temp = [value for value in values if value == tag]
+            #if len(temp) > 0:
+            #    sub_dict["state"]["reported"][k] = values[0]
             for value in values:
                 if value == tag:
-                    sub_dict['state']['reported'][k] = values[0]
-        #client.publish(unnamed_base_str + "name/" + x + "/update", json.dumps(sub_dict))
-        topic_str = unnamed_base_str + "name/" + tag + "/update"
-        #print("Printing sub dict for " + tag + ": ")
-        #print(sub_dict)
+                    sub_dict["state"]["reported"][k] = values[0]
+        # client.publish(unnamed_base_str + "name/" + x + "/update", json.dumps(sub_dict))
+        topic_str = f"{client_userdata['unnamed_base_str']}name/{tag}/update"
         publish_dict[topic_str] = json.dumps(sub_dict)
 
+
 def mytimecalculations(StartTime=None, EndTime=None):
-    """ This only computes the running time. Returns in milliseconds
-    """
+    """This only computes the running time. Returns in milliseconds"""
     if isinstance(StartTime, str):
         try:
-            StartTime = datetime.datetime.strptime(
-                StartTime, "%Y-%m-%d %H:%M:%S.%f")
+            StartTime = datetime.datetime.strptime(StartTime, "%Y-%m-%d %H:%M:%S.%f")
         except:
-            StartTime = datetime.datetime.strptime(
-                StartTime, "%Y-%m-%d %H:%M:%S,%f")
+            StartTime = datetime.datetime.strptime(StartTime, "%Y-%m-%d %H:%M:%S,%f")
     if isinstance(EndTime, str):
         try:
-            EndTime = datetime.datetime.strptime(
-                EndTime, "%Y-%m-%d %H:%M:%S.%f")
+            EndTime = datetime.datetime.strptime(EndTime, "%Y-%m-%d %H:%M:%S.%f")
         except:
-            EndTime = datetime.datetime.strptime(
-                EndTime, "%Y-%m-%d %H:%M:%S,%f")
+            EndTime = datetime.datetime.strptime(EndTime, "%Y-%m-%d %H:%M:%S,%f")
     delta = EndTime - StartTime
-    elapsed_ms = (delta.days * 86400000.0) + (delta.seconds *
-                                              1000.0) + (delta.microseconds / 1000.0)
+    elapsed_ms = (
+        (delta.days * 86400000.0)
+        + (delta.seconds * 1000.0)
+        + (delta.microseconds / 1000.0)
+    )
     return elapsed_ms
+
 
 def main():
     global logger
-    global shadow
-    global named_base_str
-    global unnamed_base_str
-    global curr_state
-    global device_name
-    global num_tags
-    global num_trials
-    global num_trials_modifier
-    global timing_file
-
     args = parse_args()
 
+    if args.shadow and (args.shadow_name is None):
+        raise parser.ParserError("--shadow requires --shadow_name.")
     if args.num_tags:
-        num_tags = args.num_tags
+        client_userdata["num_tags"] = args.num_tags
     if args.num_trials:
-        num_trials = args.num_trials
-        num_trials_modifier = 1.0/(float(args.num_trials))
+        client_userdata["num_trials"] = args.num_trials
+        client_userdata["num_trials_modifier"] = 1.0 / (float(args.num_trials))
     if args.output_file:
-        timing_file = args.output_file
-    else:
-        timing_file = "timing_output_" + str(datetime.datetime.now()) + ".txt"
-    device_name = args.device_name          #this has a default val, so this assignment doesn't need a check
-    named_base_str = "devices/" + device_name + "/shadow/"
-    unnamed_base_str = named_base_str
-    log_file_name = device_name
-    if args.shadow:
-        named_base_str = named_base_str + "name/" + args.shadow + "/"
-        shadow = True
-        log_file_name = log_file_name + "_" + args.shadow
-    log_file_name = log_file_name + ".log"
+        client_userdata["timing_file"] = args.output_file
 
-    logger = setup_logger('', log_file_name, level=logging.DEBUG)
+    device_name = (
+        args.device_name
+    )  # this has a default val, so this assignment doesn't need a check
+    client_userdata["trial_counter"] = 0
+    client_userdata["shadow"] = args.shadow
+    client_userdata["shadow_name"] = args.shadow_name
+    client_userdata["device_name"] = device_name
+    client_userdata[
+        "named_base_str"
+    ] = f"devices/{client_userdata['device_name']}/shadow/"
+    client_userdata["unnamed_base_str"] = client_userdata["named_base_str"]
 
-    client = mqtt.Client()
+    log_file_name = client_userdata["device_name"]
+    if client_userdata["shadow"]:
+        client_userdata[
+            "named_base_str"
+        ] = f"{client_userdata['named_base_str']}name/{client_userdata['shadow_name']}/"
+        log_file_name = f"{log_file_name}_{client_userdata['shadow_name']}"
+    log_file_name = f"{log_file_name}.log"
+    logger = setup_logger("", log_file_name, level=logging.DEBUG)
+
+    client = mqtt.Client(userdata=client_userdata)
     client.on_message = on_message
     client.on_connect = on_connect
     client.username_pw_set(username="counter_shadow", password="counter_password")
 
-    #load in last recorded state from json, if json not found then make shadow file
-    if not shadow:
-        if os.path.exists(device_name + "_shadow.json"):
-            file_in = open(device_name + "_shadow.json")
-            curr_state = json.load(file_in)
-            file_in.close()
+    # load in last recorded state from json, if json not found then make shadow file
+    if client_userdata["shadow"] is False:
+        if os.path.exists(f"{client_userdata['device_name']}_shadow.json"):
+            with open(f"{client_userdata['device_name']}_shadow.json", "r") as f:
+                client_userdata["curr_state"] = json.load(f)
         else:
             print("shadow not found, making new one")
-            logger.info("shadow json not found, creating file " + device_name + "_shadow.json")
-            curr_state = json_generator()
-            file_out = open(device_name + "_shadow.json", "w")
-            json.dump(curr_state, file_out)
-            file_out.close
-    if shadow:
-        shadow_file_name = device_name + "_" + sys.argv[2] + "_shadow.json"
+            logger.info(
+                f"shadow json not found, creating file {client_userdata['device_name']}_shadow.json"
+            )
+            client_userdata["curr_state"] = json_generator()
+            with open(client_userdata["device_name"] + "_shadow.json", "w") as f:
+                json.dump(curr_state, f)
+    if client_userdata["shadow"]:
+        shadow_file_name = f"{client_userdata['device_name']}_{client_userdata['shadow_name']}_shadow.json"
         if os.path.exists(shadow_file_name):
-            file_in = open(shadow_file_name)
-            curr_state = json.load(file_in)
-            file_in.close()
+            with open(shadow_file_name, "r") as f:
+                client_userdata["curr_state"] = json.load(f)
         else:
             print("shadow not found, making new one")
-            logger.info("shadow json not found, creating file " + shadow_file_name)
-            curr_state = json_generator()
-            file_out = open(shadow_file_name, "w")
-            json.dump(curr_state, file_out)
-            file_out.close
-
+            logger.info(f"shadow json not found, creating file {shadow_file_name}")
+            client_userdata["curr_state"] = json_generator()
+            with open(shadow_file_name, "w") as f:
+                json.dump(client_userdata["curr_state"], f)
     client.connect("localhost", 1883, 60)
 
     try:
         client.loop_forever()
     except KeyboardInterrupt:
-        logger.warning("Exception type - " + str(sys.exc_info()[0]))
-        logger.info("Writing current state to json shadow: " + json.dumps(curr_state))     #right before client shutdown, write current state to json
-        output_stream = open(device_name + "_shadow.json", "w")
-        json.dump(curr_state, output_stream)
-        output_stream.close()
-    """
-    except Exception:
-        logger.critical("Unexpected exception of type - " + str(sys.exc_info()[0]))
-        logger.info("Writing current state to json shadow: " + json.dumps(curr_state))     #right before client shutdown, write current state to json
-        output_stream = open(device_name + "_shadow.json", "w")
-        json.dump(curr_state, output_stream)
-        output_stream.close()
-    """
+        logger.warning(f"Exception type - Keyboard Interrupt")
+        # right before client shutdown, write current state to json
+        logger.info(
+            f"Writing current state to json shadow: {json.dumps(client_userdata['curr_state'])}"
+        )
+        with open(f"{client_userdata['device_name']}_shadow.json", "w") as f:
+            json.dump(client_userdata["curr_state"], f)
+
 
 if __name__ == "__main__":
     main()
