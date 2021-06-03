@@ -114,6 +114,7 @@ def update(client, userdata, msg, name):            #TODO a desired update logic
                 shadow = json.load(file_in)
             for k, v in decoded_str['state']['reported'].items():         #this block updates the shadow with the new reported state
                 shadow['state']['reported'][k] = v
+            client.publish(unnamed_base_str + "get", json.dumps(decoded_str['state']['reported']))
             with open(name + "_shadow.json", "w") as file_out:
                 json.dump(shadow, file_out)
 
