@@ -150,6 +150,9 @@ def delta(client, name):
 
     global connected
     
+    if not connected:
+        print("the device is not connected")
+
     if connected == True and len(shadow['state']['delta']) != 0:
         str = json.dumps(shadow['state']['delta'])
         client.publish(named_base_str + "update/delta", str)       #publish keys in delta to device
