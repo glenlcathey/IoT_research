@@ -50,12 +50,20 @@ def parse_args():
         help="Name of the indicated shadow.",
     )
     parser.add_argument(
-        "-n",
+        "-nt",
         "--num_tags",
         type=int,
         required=False,
-        default=50,
-        help="The number of tags given to each key-value pair",
+        default=5,
+        help="The number of tags given to each key-value pair.",
+    )
+    parser.add_argument(
+        "-np",
+        "--num_pairs",
+        type=int,
+        required=False,
+        default=100,
+        help="The number of key-value pairs the system will incriment to before emptying the json and starting another trial.",
     )
     parser.add_argument(
         "-t",
@@ -112,6 +120,7 @@ def behaviors(client):  # Define client specific behaviors in this function.
     # print(f"NUM_TAGS: {client_userdata['num_tags']}")
     # print("enter behaviours")
     # print(f"BEHAVIORS CLIENT CURR_STATE: {client_userdata['curr_state']}")
+    """
 
     first_key_str = list(client_userdata["curr_state"]["state"]["reported"].items())[0][
         0
@@ -137,6 +146,35 @@ def behaviors(client):  # Define client specific behaviors in this function.
     for key, value in client_userdata["curr_state"]["state"]["desired"].items():
         if key != first_key_str:
             client_userdata["curr_state"]["state"]["desired"][key] = first_key_val
+    """
+
+    #================================================================================================================================================================
+    print(client_userdata["curr_state"]["state"]["reported"])
+    
+    first_key_str = list(client_userdata["curr_state"]["state"]["reported"].items())[0][
+        0
+    ]
+    first_key_val = list(client_userdata["curr_state"]["state"]["reported"].items())[0][
+        1
+    ]
+    print(len(list(client_userdata["curr_state"]["state"]["reported"].items())[0][1]), end='\n') #print the number of tags attached to the first k-v pair
+    print((client_userdata["num_pairs"] + 1), end='\n') # check how many pairs should be attached and add one to account for the sensor value
+    if len(list(client_userdata["curr_state"]["state"]["reported"].items())[0][1]) != (client_userdata["num_tags"] + 1): # if the first k-v pair does not have correct tags then add tags
+        print("THIS SHOULD ONLY BE ENTERED AFTER A TRIAL RESET")
+        client_userdata["curr_state"]["state"]["reported"][first_key_str] = [0] #if we are in this conditional then the value attached to this pair needs to be emptied
+        client_userdata["curr_state"]["state"]["desired"][first_key_str] = first_key_val.copy()
+        for x in range(0, client_userdata["num_tags"]):
+            print(x)
+            tag_str = f"TAG_{x}"
+            client_userdata["curr_state"]["state"]["desired"][first_key_str].append(tag_str)
+        return
+    #first k-v pair is verified to be correct at this point. should only need to copy the first k-v pair and append it to the end of the desired below here
+    first_key_val = list(client_userdata["curr_state"]["state"]["reported"].items())[0][
+        1
+    ]
+    append_key_str = f"value_{len(client_userdata['curr_state']['state']['reported'])}"
+    client_userdata["curr_state"]["state"]["desired"][append_key_str] = first_key_val # add a k-v pair that is equivalent to the first k-v pair
+
 
 
 def subscription_setup(client):  # TODO add the rest of aws api subscription setup
@@ -179,16 +217,11 @@ def on_message(client, userdata, msg):
         if client_userdata["trial_counter"] < client_userdata["num_trials"]:
             # hardcoded take the length of the 'value' key and subtract one to find the associated timing index
             timer_index = (
-                len(
-                    list(client_userdata["curr_state"]["state"]["reported"].items())[0][
-                        1
-                    ]
-                )
-                - 1
+                len(client_userdata["curr_state"]["state"]["reported"])
             )
             print(
-                f"\tTIME: {TIMER}ms\tfor TIMING INDEX: {timer_index} of {client_userdata['num_tags']} and "
-                f"TRIAL: {client_userdata['trial_counter']} or {client_userdata['num_trials']}"
+                f"\tTIME: {TIMER}ms\tfor TIMING INDEX: {timer_index} of {client_userdata['num_pairs']} and "
+                f"TRIAL: {client_userdata['trial_counter']} of {client_userdata['num_trials']}"
             )
             # add the amount of time scaled by the number of trials to the list index for that number of tags
             timing[timer_index].append(TIMER)
@@ -197,8 +230,8 @@ def on_message(client, userdata, msg):
 
         # this could check len of list for first key or it could check number of key-value pairs present
         if (
-            len(client_userdata["curr_state"]["state"]["reported"]["value"]) - 1
-        ) == client_userdata["num_tags"]:
+            len(client_userdata["curr_state"]["state"]["reported"])
+        ) == client_userdata["num_pairs"]:
             client_userdata["trial_counter"] += 1
             print(f"Trial {client_userdata['trial_counter']} complete")
             client_userdata["curr_state"]["state"]["reported"] = {}
@@ -354,6 +387,8 @@ def main():
         raise parser.ParserError("--shadow requires --shadow_name.")
     if args.num_tags:
         client_userdata["num_tags"] = args.num_tags
+    if args.num_pairs:
+        client_userdata["num_pairs"] = args.num_pairs
     if args.num_trials:
         client_userdata["num_trials"] = args.num_trials
         client_userdata["num_trials_modifier"] = 1.0 / (float(args.num_trials))
