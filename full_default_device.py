@@ -48,13 +48,15 @@ def on_message(client, userdata, msg):
 
 def parse_delta(x):
     #print(x)
+    """
     for k, v in x.items():
         if k in data['state']['reported']:
-            data['state']['reported'][k] = v                                            #NOTE only the desired value is modifiable as the tag behavior is defined at the device level
+            data['state']['reported'][k] = v                                            
         else:
             temp_dict = [v]
             data['state']['reported'][k] = temp_dict
-    
+    """
+    data['state']['reported'] = x
     #state = json.dumps(data)
     #client.publish(BASE_STR + "update", state, qos=1)                               # once the device state is updated to match the desired state, report updated the device state
 
@@ -79,4 +81,4 @@ while True:                                                                     
     #print(data)
     state = json.dumps(data)
     client.publish(BASE_STR + "update", state, qos=1)                                      #publish curr state to unnamed shadow
-    time.sleep(.1)
+    time.sleep(.01)
